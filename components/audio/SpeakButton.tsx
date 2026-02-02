@@ -1,0 +1,64 @@
+import React, { useState } from 'react';
+import { Pressable, Text, StyleSheet, View } from 'react-native';
+import * as Speech from 'expo-speech';
+import { colors, spacing, radius } from '../../constants/theme';
+
+interface Props {
+  text: string;
+  size?: 'small' | 'large';
+  autoPlay?: boolean;
+}
+
+export default function SpeakButton({ text, size = 'large', autoPlay = false }: Props) {
+  const [speaking, setSpeaking] = useState(false);
+
+  React.useEffect(() => {
+    if (autoPlay) {
+      speak();
+    }
+  }, [text]);
+
+  const speak = () => {
+    if (speaking) return;
+    setSpeaking(true);
+    Speech.speak(text, {
+      language: 'zh-CN',
+      rate: 0.8,
+      onDone: () => setSpeaking(false),
+      onError: () => setSpeaking(false),
+    });
+  };
+
+  const iconSize = size === 'large' ? 48 : 36;
+
+  return (
+    <Pressable
+      onPress={speak}
+      style={({ pressed }) => [
+        styles.button,
+        { width: iconSize + 24, height: iconSize + 24, opacity: pressed ? 0.7 : 1 },
+      ]}
+    >
+      <View style={[styles.iconCircle, { width: iconSize, height: iconSize, borderRadius: iconSize / 2 }]}>
+        <Text style={[styles.icon, { fontSize: iconSize * 0.5 }]}>
+          {speaking ? '...' : '🔊'}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  button: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconCircle: {
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  icon: {
+    color: '#FFFFFF',
+  },
+});
