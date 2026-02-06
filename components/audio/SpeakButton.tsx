@@ -7,20 +7,27 @@ interface Props {
   text: string;
   size?: 'small' | 'large';
   autoPlay?: boolean;
+  autoPlayDelay?: number; // Delay in ms before auto-playing
+  onPress?: () => void; // Called when user taps to play audio
 }
 
-export default function SpeakButton({ text, size = 'large', autoPlay = false }: Props) {
+export default function SpeakButton({ text, size = 'large', autoPlay = false, autoPlayDelay = 0, onPress }: Props) {
   const [speaking, setSpeaking] = useState(false);
 
   React.useEffect(() => {
     if (autoPlay) {
-      speak();
+      const timer = setTimeout(() => {
+        speak();
+        onPress?.(); // Also trigger callback on autoPlay
+      }, autoPlayDelay);
+      return () => clearTimeout(timer);
     }
   }, [text]);
 
   const speak = () => {
     if (speaking) return;
     setSpeaking(true);
+    onPress?.();
     Speech.speak(text, {
       language: 'zh-CN',
       rate: 0.8,

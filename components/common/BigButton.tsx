@@ -28,12 +28,12 @@ export default function BigButton({ label, onPress, color = colors.primary, styl
 
 const styles = StyleSheet.create({
   button: {
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
     borderRadius: radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 56,
+    minHeight: 44,
   },
   label: {
     color: '#FFFFFF',

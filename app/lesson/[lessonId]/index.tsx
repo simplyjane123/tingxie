@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import ScreenWrapper from '../../../components/common/ScreenWrapper';
+import ToneCurve from '../../../components/pinyin/ToneCurve';
 import { getLessonById } from '../../../data/lessons';
 import { useAppStore } from '../../../store/useAppStore';
 import { colors, spacing, radius, typography, toneColor } from '../../../constants/theme';
@@ -22,7 +23,7 @@ export default function WordMapScreen() {
   return (
     <ScreenWrapper>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable onPress={() => router.replace('/')} style={styles.backBtn}>
           <Text style={styles.backText}>← 返回</Text>
         </Pressable>
         <Text style={styles.title}>{lesson.label}</Text>
@@ -37,24 +38,55 @@ export default function WordMapScreen() {
           return (
             <Pressable
               key={item.id}
-              style={({ pressed }) => [styles.itemCard, pressed && { opacity: 0.8 }]}
+              style={({ pressed }) => [
+                styles.itemCard,
+                item.type === 'pinyin' && item.syllables.length > 1 && styles.itemCardWide,
+                pressed && { opacity: 0.8 },
+              ]}
               onPress={() => {
                 useAppStore.getState().setItemIndex(index);
+                // Pinyin items go directly to pinyin screen (听一听), hanzi items go to writing
                 const track = item.type === 'pinyin' ? 'pinyin' : 'writing';
                 router.push(`/lesson/${lessonId}/item/${index}/${track}`);
               }}
             >
-              {/* Show character or pinyin as main display */}
-              <Text style={styles.itemChar}>
-                {item.type === 'hanzi' ? item.characters : item.pinyin}
-              </Text>
-              {item.type === 'hanzi' && (
-                <Text style={[styles.itemPinyin, { color: toneColor(item.syllables[0]?.tone ?? 0) }]}>
-                  {item.pinyin}
-                </Text>
+              {/* For pinyin items: show tone curves + pinyin */}
+              {item.type === 'pinyin' && (
+                <View style={styles.pinyinDisplay}>
+                  <View style={styles.toneCurvesRow}>
+                    {item.syllables.map((syl, i) => (
+                      <ToneCurve
+                        key={i}
+                        tone={syl.tone as 1 | 2 | 3 | 4}
+                        size={40}
+                        animate={false}
+                      />
+                    ))}
+                  </View>
+                  <View style={styles.syllablesRow}>
+                    {item.syllables.map((syl, i) => (
+                      <Text
+                        key={i}
+                        style={[styles.syllableText, { color: toneColor(syl.tone) }]}
+                      >
+                        {syl.pinyin}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
               )}
 
-              {/* Progress indicator — one dot per item type */}
+              {/* For hanzi items: show character + pinyin below */}
+              {item.type === 'hanzi' && (
+                <>
+                  <Text style={styles.itemChar}>{item.characters}</Text>
+                  <Text style={[styles.itemPinyin, { color: toneColor(item.syllables[0]?.tone ?? 0) }]}>
+                    {item.pinyin}
+                  </Text>
+                </>
+              )}
+
+              {/* Progress indicator */}
               <View style={styles.indicators}>
                 {item.type === 'hanzi' ? (
                   <View style={[styles.dot, writingDone && { backgroundColor: colors.correct }]}>
@@ -121,6 +153,27 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 3,
     padding: spacing.sm,
+  },
+  itemCardWide: {
+    width: 140,
+  },
+  pinyinDisplay: {
+    alignItems: 'center',
+    gap: 2,
+  },
+  toneCurvesRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.xs,
+  },
+  syllablesRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.xs,
+  },
+  syllableText: {
+    fontSize: 22,
+    fontWeight: '700',
   },
   itemChar: {
     fontSize: 28,

@@ -43,7 +43,7 @@ export default function WritingScreen() {
     return (
       <ScreenWrapper>
         <Text style={styles.errorText}>没有可写的字</Text>
-        <BigButton label="返回" onPress={() => router.back()} />
+        <BigButton label="返回" onPress={() => router.replace(`/lesson/${lessonId}`)} />
       </ScreenWrapper>
     );
   }
@@ -72,7 +72,7 @@ export default function WritingScreen() {
   return (
     <ScreenWrapper>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable onPress={() => router.replace(`/lesson/${lessonId}`)} style={styles.backBtn}>
           <Text style={styles.backText}>← 返回</Text>
         </Pressable>
         <Text style={styles.modeLabel}>
@@ -86,10 +86,12 @@ export default function WritingScreen() {
       </View>
 
       <View style={styles.content}>
-        {/* Show the full word context */}
-        <Text style={styles.wordLabel}>
-          {item.characters} ({item.pinyin})
-        </Text>
+        {/* Show the full word context - only in demo mode at top */}
+        {mode === 'demo' && (
+          <Text style={styles.wordLabel}>
+            {item.characters} ({item.pinyin})
+          </Text>
+        )}
 
         {loading && (
           <Text style={styles.wordLabel}>加载中...</Text>
@@ -100,6 +102,7 @@ export default function WritingScreen() {
             <StrokeDemo
               characterData={charData}
               character={currentChar}
+              speakText={item.characters}
               onComplete={handleDemoComplete}
             />
             <BigButton
@@ -114,6 +117,8 @@ export default function WritingScreen() {
           <StrokeTracer
             characterData={charData}
             character={currentChar}
+            wordLabel={`${item.characters} (${item.pinyin})`}
+            speakText={item.characters}
             onComplete={handleTraceComplete}
           />
         )}
@@ -123,8 +128,16 @@ export default function WritingScreen() {
             <Text style={styles.doneChar}>{item.characters}</Text>
             <Text style={styles.doneText}>太棒了!</Text>
             <BigButton
+              label="再写一次"
+              onPress={() => {
+                setCharIdx(0);
+                setMode('demo');
+              }}
+              color={colors.primary}
+            />
+            <BigButton
               label="返回词语列表"
-              onPress={() => router.back()}
+              onPress={() => router.replace(`/lesson/${lessonId}`)}
               color={colors.correct}
             />
           </View>
@@ -164,8 +177,10 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.lg,
+    justifyContent: 'flex-start',
+    gap: spacing.sm,
+    paddingTop: spacing.xs,
+    paddingBottom: 60,
   },
   wordLabel: {
     fontSize: 20,

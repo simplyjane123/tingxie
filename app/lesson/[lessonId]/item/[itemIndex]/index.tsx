@@ -21,7 +21,8 @@ export default function TrackPickerScreen() {
     );
   }
 
-  const hasPinyin = item.type === 'pinyin' || item.type === 'mixed';
+  // Show pinyin track for all items that have syllables (all words have pinyin)
+  const hasPinyin = item.syllables && item.syllables.length > 0;
   const hasCharacters = !!item.characters;
   const writingDone = progress?.writingComplete ?? false;
   const pinyinStage = progress?.pinyinStage ?? 0;

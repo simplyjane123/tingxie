@@ -1,9 +1,12 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, PanResponder, GestureResponderEvent } from 'react-native';
+import { View, Text, StyleSheet, PanResponder, GestureResponderEvent, Pressable } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
+import * as Speech from 'expo-speech';
 import MiziGrid from './MiziGrid';
 import { colors, spacing } from '../../constants/theme';
 import { WRITING_GRID_SIZE } from '../../constants/layout';
+
+const ANIMALS = ['🦫', '🐼', '🐰', '🦩'];  // capybara, panda, rabbit, flamingo
 
 interface StrokeData {
   strokes: string[];
@@ -13,6 +16,8 @@ interface StrokeData {
 interface Props {
   characterData: StrokeData | null;
   character: string;
+  wordLabel?: string;
+  speakText?: string;
   onComplete?: () => void;
 }
 
@@ -21,83 +26,64 @@ interface DrawnStroke {
   correct: boolean;
 }
 
-export default function StrokeTracer({ characterData, character, onComplete }: Props) {
+export default function StrokeTracer({ characterData, character, wordLabel, speakText, onComplete }: Props) {
   const [currentStrokeIdx, setCurrentStrokeIdx] = useState(0);
   const [drawnStrokes, setDrawnStrokes] = useState<DrawnStroke[]>([]);
   const [currentPath, setCurrentPath] = useState('');
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null);
+  const [showCelebration, setShowCelebration] = useState(false);
   const pointsRef = useRef<{ x: number; y: number }[]>([]);
+  const strokeIdxRef = useRef(0);
+  const charDataRef = useRef(characterData);
 
   const totalStrokes = characterData?.strokes.length ?? 0;
   const isComplete = currentStrokeIdx >= totalStrokes;
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => !isComplete,
-      onMoveShouldSetPanResponder: () => !isComplete,
-      onPanResponderGrant: (e: GestureResponderEvent) => {
-        const { locationX, locationY } = e.nativeEvent;
-        pointsRef.current = [{ x: locationX, y: locationY }];
-        setCurrentPath(`M${locationX},${locationY}`);
-        setFeedback(null);
-      },
-      onPanResponderMove: (e: GestureResponderEvent) => {
-        const { locationX, locationY } = e.nativeEvent;
-        pointsRef.current.push({ x: locationX, y: locationY });
-        setCurrentPath(prev => `${prev} L${locationX},${locationY}`);
-      },
-      onPanResponderRelease: () => {
-        if (!characterData || pointsRef.current.length < 3) {
-          setCurrentPath('');
-          return;
-        }
 
-        // Simplified stroke validation: check if the drawn stroke
-        // roughly follows the expected median path direction
-        const drawnPoints = pointsRef.current;
-        const expectedMedian = characterData.medians[currentStrokeIdx];
+  // Reset function for repeat button
+  const handleRepeat = () => {
+    setCurrentStrokeIdx(0);
+    setDrawnStrokes([]);
+    setCurrentPath('');
+    setFeedback(null);
+    setShowCelebration(false);
+    strokeIdxRef.current = 0;
+  };
 
-        if (!expectedMedian || expectedMedian.length < 2) {
-          // Can't validate, accept it
-          handleCorrect();
-          return;
-        }
+  // Scale factor to convert screen coordinates to viewBox coordinates
+  const screenToViewBox = 1024 / WRITING_GRID_SIZE;
 
-        // Check general direction match
-        const drawnDx = drawnPoints[drawnPoints.length - 1].x - drawnPoints[0].x;
-        const drawnDy = drawnPoints[drawnPoints.length - 1].y - drawnPoints[0].y;
-
-        const scale = WRITING_GRID_SIZE / 1024;
-        const first = expectedMedian[0];
-        const last = expectedMedian[expectedMedian.length - 1];
-        const expectedDx = (last[0] - first[0]) * scale;
-        const expectedDy = -(last[1] - first[1]) * scale; // Y is flipped in SVG coords
-
-        // Simple direction check using dot product
-        const dot = drawnDx * expectedDx + drawnDy * expectedDy;
-
-        if (dot > 0 || (Math.abs(drawnDx) < 20 && Math.abs(drawnDy) < 20 && Math.abs(expectedDx) < 30 && Math.abs(expectedDy) < 30)) {
-          handleCorrect();
-        } else {
-          handleIncorrect();
-        }
-      },
-    })
-  ).current;
+  // Keep refs in sync with state
+  strokeIdxRef.current = currentStrokeIdx;
+  charDataRef.current = characterData;
 
   const handleCorrect = () => {
     setFeedback('correct');
-    setDrawnStrokes(prev => [...prev, { path: currentPath, correct: true }]);
+    const pathStr = pointsRef.current.map((p, i) => {
+      const vx = p.x * screenToViewBox;
+      const vy = p.y * screenToViewBox;
+      return i === 0 ? `M${vx},${vy}` : `L${vx},${vy}`;
+    }).join(' ');
+    setDrawnStrokes(prev => [...prev, { path: pathStr, correct: true }]);
     setCurrentPath('');
 
     setTimeout(() => {
-      const nextIdx = currentStrokeIdx + 1;
+      const nextIdx = strokeIdxRef.current + 1;
       setCurrentStrokeIdx(nextIdx);
       setFeedback(null);
       if (nextIdx >= totalStrokes) {
-        onComplete?.();
+        // Play speech first, then show celebration
+        if (speakText) {
+          Speech.speak(speakText, { language: 'zh-CN', rate: 0.8 });
+        }
+        setTimeout(() => {
+          setShowCelebration(true);
+          setTimeout(() => {
+            onComplete?.();
+          }, 2000);
+        }, 800); // Delay celebration to let speech start
       }
-    }, 400);
+    }, 300);
   };
 
   const handleIncorrect = () => {
@@ -105,8 +91,81 @@ export default function StrokeTracer({ characterData, character, onComplete }: P
     setTimeout(() => {
       setCurrentPath('');
       setFeedback(null);
-    }, 600);
+    }, 400);
   };
+
+  const validateStroke = () => {
+    const data = charDataRef.current;
+    if (!data || pointsRef.current.length < 2) {
+      setCurrentPath('');
+      return;
+    }
+
+    const drawnPoints = pointsRef.current;
+    const expectedMedian = data.medians[strokeIdxRef.current];
+
+    // If no median data, accept any stroke
+    if (!expectedMedian || expectedMedian.length < 2) {
+      handleCorrect();
+      return;
+    }
+
+    // Calculate drawn stroke direction
+    const drawnDx = drawnPoints[drawnPoints.length - 1].x - drawnPoints[0].x;
+    const drawnDy = drawnPoints[drawnPoints.length - 1].y - drawnPoints[0].y;
+    const drawnLen = Math.sqrt(drawnDx * drawnDx + drawnDy * drawnDy);
+
+    // Calculate expected stroke direction
+    const scale = WRITING_GRID_SIZE / 1024;
+    const first = expectedMedian[0];
+    const last = expectedMedian[expectedMedian.length - 1];
+    const expectedDx = (last[0] - first[0]) * scale;
+    const expectedDy = -(last[1] - first[1]) * scale; // Y is flipped
+    const expectedLen = Math.sqrt(expectedDx * expectedDx + expectedDy * expectedDy);
+
+    // For very short strokes (dots), accept if user drew anything
+    if (expectedLen < 20 || drawnLen < 15) {
+      handleCorrect();
+      return;
+    }
+
+    // Check direction using dot product (normalized)
+    const dot = (drawnDx * expectedDx + drawnDy * expectedDy) / (drawnLen * expectedLen + 0.001);
+
+    // Accept if direction is roughly correct (dot > -0.2 means < ~100 degrees off)
+    if (dot > -0.2) {
+      handleCorrect();
+    } else {
+      handleIncorrect();
+    }
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (e: GestureResponderEvent) => {
+        const { locationX, locationY } = e.nativeEvent;
+        pointsRef.current = [{ x: locationX, y: locationY }];
+        // Scale to viewBox coordinates
+        const vx = locationX * screenToViewBox;
+        const vy = locationY * screenToViewBox;
+        setCurrentPath(`M${vx},${vy}`);
+        setFeedback(null);
+      },
+      onPanResponderMove: (e: GestureResponderEvent) => {
+        const { locationX, locationY } = e.nativeEvent;
+        pointsRef.current.push({ x: locationX, y: locationY });
+        // Scale to viewBox coordinates
+        const vx = locationX * screenToViewBox;
+        const vy = locationY * screenToViewBox;
+        setCurrentPath(prev => `${prev} L${vx},${vy}`);
+      },
+      onPanResponderRelease: () => {
+        validateStroke();
+      },
+    })
+  ).current;
 
   if (!characterData) {
     return (
@@ -118,11 +177,10 @@ export default function StrokeTracer({ characterData, character, onComplete }: P
     );
   }
 
-  // Show start point for current stroke
+  // Show start point for current stroke (in viewBox 0-1024 coordinates)
   const currentMedian = characterData.medians[currentStrokeIdx];
-  const scale = WRITING_GRID_SIZE / 1024;
   const startPoint = currentMedian
-    ? { x: currentMedian[0][0] * scale, y: WRITING_GRID_SIZE - currentMedian[0][1] * scale }
+    ? { x: currentMedian[0][0], y: 900 - currentMedian[0][1] }
     : null;
 
   return (
@@ -133,7 +191,7 @@ export default function StrokeTracer({ characterData, character, onComplete }: P
 
       <MiziGrid>
         <View {...panResponder.panHandlers} style={StyleSheet.absoluteFill}>
-          <Svg width={WRITING_GRID_SIZE} height={WRITING_GRID_SIZE} style={StyleSheet.absoluteFill}>
+          <Svg width={WRITING_GRID_SIZE} height={WRITING_GRID_SIZE} viewBox="0 0 1024 1024" style={StyleSheet.absoluteFill}>
             {/* Ghost character */}
             {characterData.strokes.map((d, i) => (
               <Path
@@ -141,7 +199,7 @@ export default function StrokeTracer({ characterData, character, onComplete }: P
                 d={d}
                 fill={i < currentStrokeIdx ? colors.correct : '#E8E8E8'}
                 opacity={i < currentStrokeIdx ? 0.6 : 0.15}
-                transform={`scale(${scale}, ${-scale}) translate(0, ${-1024 + 124 / scale})`}
+                transform="scale(1, -1) translate(0, -900)"
               />
             ))}
 
@@ -151,7 +209,7 @@ export default function StrokeTracer({ characterData, character, onComplete }: P
                 d={characterData.strokes[currentStrokeIdx]}
                 fill={colors.primary}
                 opacity={0.2}
-                transform={`scale(${scale}, ${-scale}) translate(0, ${-1024 + 124 / scale})`}
+                transform="scale(1, -1) translate(0, -900)"
               />
             )}
 
@@ -195,8 +253,32 @@ export default function StrokeTracer({ characterData, character, onComplete }: P
         </View>
       </MiziGrid>
 
-      {isComplete && (
-        <Text style={styles.doneText}>写完了!</Text>
+      {wordLabel && (
+        <Text style={styles.wordLabel}>{wordLabel}</Text>
+      )}
+
+      {isComplete && !showCelebration && (
+        <View style={styles.completeRow}>
+          <Text style={styles.doneText}>写完了!</Text>
+          <Pressable onPress={handleRepeat} style={styles.repeatBtn}>
+            <Text style={styles.repeatText}>重复</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {/* Celebration overlay with animals */}
+      {showCelebration && (
+        <View style={styles.celebrationOverlay}>
+          <View style={styles.animalRow}>
+            {ANIMALS.map((animal, i) => (
+              <Text key={i} style={styles.animal}>{animal}</Text>
+            ))}
+          </View>
+          <Text style={styles.celebrationText}>太棒了!</Text>
+          <Pressable onPress={handleRepeat} style={styles.repeatBtnLarge}>
+            <Text style={styles.repeatTextLarge}>再写一次</Text>
+          </Pressable>
+        </View>
       )}
     </View>
   );
@@ -221,9 +303,62 @@ const styles = StyleSheet.create({
     color: colors.textLight,
     fontWeight: '500',
   },
+  wordLabel: {
+    fontSize: 22,
+    color: colors.textLight,
+    fontWeight: '500',
+  },
   doneText: {
     fontSize: 24,
     color: colors.correct,
+    fontWeight: '700',
+  },
+  completeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  repeatBtn: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+  },
+  repeatText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  celebrationOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#4CAF50',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+    gap: spacing.lg,
+  },
+  animalRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  animal: {
+    fontSize: 64,
+  },
+  celebrationText: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  repeatBtnLarge: {
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginTop: spacing.md,
+  },
+  repeatTextLarge: {
+    color: '#4CAF50',
+    fontSize: 24,
     fontWeight: '700',
   },
 });

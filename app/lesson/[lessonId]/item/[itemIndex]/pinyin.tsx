@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import ScreenWrapper from '../../../../../components/common/ScreenWrapper';
 import PinyinDisplay from '../../../../../components/pinyin/PinyinDisplay';
 import PinyinBuilder from '../../../../../components/pinyin/PinyinBuilder';
 import ToneSelector from '../../../../../components/pinyin/ToneSelector';
-import ToneCurve from '../../../../../components/pinyin/ToneCurve';
 import SpeakButton from '../../../../../components/audio/SpeakButton';
 import BigButton from '../../../../../components/common/BigButton';
 import ProgressDots from '../../../../../components/common/ProgressDots';
@@ -14,6 +13,7 @@ import LocalCorrection from '../../../../../components/feedback/LocalCorrection'
 import { getLessonById } from '../../../../../data/lessons';
 import { useAppStore } from '../../../../../store/useAppStore';
 import { colors, spacing, typography, toneColor } from '../../../../../constants/theme';
+import { stripTone } from '../../../../../utils/pinyin';
 
 export default function PinyinScreen() {
   const { lessonId, itemIndex } = useLocalSearchParams<{ lessonId: string; itemIndex: string }>();
@@ -22,9 +22,10 @@ export default function PinyinScreen() {
   const item = lesson?.items[idx];
 
   const progress = useAppStore((s) => item ? s.progress[item.id] : undefined);
-  const startStage = Math.min((progress?.pinyinStage ?? 0) + 1, 4);
-  const [stage, setStage] = useState(startStage);
+  // Always start at Stage 1 (听一听) to show animated tones and pronunciation first
+  const [stage, setStage] = useState(1);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [replayKey, setReplayKey] = useState(0);
 
   // Stage 3 state
   const [currentSyllableIdx, setCurrentSyllableIdx] = useState(0);
@@ -50,24 +51,25 @@ export default function PinyinScreen() {
   const advanceStage = () => {
     useAppStore.getState().advancePinyinStage(item.id);
     setShowCelebration(true);
+    // CelebrationRoll's onDone callback will handle the transition
+  };
 
-    setTimeout(() => {
-      setShowCelebration(false);
-      if (stage < 4) {
-        setStage(stage + 1);
-        // Reset sub-state
-        setCurrentSyllableIdx(0);
-        setSelectedTone(null);
-        setToneResult(null);
-        setStage4Step('spelling');
-        setStage4ToneIdx(0);
-        setStage4SelectedTone(null);
-        setStage4ToneResult(null);
-      } else {
-        // All stages complete
-        router.back();
-      }
-    }, 1000);
+  const handleCelebrationDone = () => {
+    setShowCelebration(false);
+    if (stage < 4) {
+      setStage(stage + 1);
+      // Reset sub-state
+      setCurrentSyllableIdx(0);
+      setSelectedTone(null);
+      setToneResult(null);
+      setStage4Step('spelling');
+      setStage4ToneIdx(0);
+      setStage4SelectedTone(null);
+      setStage4ToneResult(null);
+    } else {
+      // All stages complete
+      router.back();
+    }
   };
 
   const handleToneSelect = (tone: 1 | 2 | 3 | 4) => {
@@ -125,7 +127,7 @@ export default function PinyinScreen() {
   return (
     <ScreenWrapper>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable onPress={() => router.replace(`/lesson/${lessonId}`)} style={styles.backBtn}>
           <Text style={styles.backText}>← 返回</Text>
         </Pressable>
         <ProgressDots total={4} current={stage - 1} />
@@ -141,11 +143,18 @@ export default function PinyinScreen() {
         {/* STAGE 1: Listen and Learn */}
         {stage === 1 && (
           <View style={styles.stage}>
-            <PinyinDisplay syllables={syllables} showToneColor />
-            {syllables.map((syl, i) => (
-              <ToneCurve key={i} tone={syl.tone as 1|2|3|4} size={80} />
-            ))}
-            <SpeakButton text={item.characters || item.pinyin} autoPlay />
+            <PinyinDisplay
+              syllables={syllables}
+              showToneColor
+              showToneCurve
+              size="xlarge"
+              replayKey={replayKey}
+            />
+            <SpeakButton
+              text={item.characters || item.pinyin}
+              autoPlay
+              onPress={() => setReplayKey((k) => k + 1)}
+            />
             <BigButton label="我听懂了" onPress={advanceStage} color={colors.correct} />
           </View>
         )}
@@ -157,6 +166,9 @@ export default function PinyinScreen() {
             <Text style={styles.hint}>拼出正确的拼音</Text>
             <PinyinBuilder
               syllables={syllables}
+              autoPlayWord
+              wordText={item.characters || item.pinyin}
+              characters={item.characters}
               onComplete={(correct) => {
                 if (correct) {
                   advanceStage();
@@ -171,14 +183,37 @@ export default function PinyinScreen() {
         {/* STAGE 3: Identify the Tone */}
         {stage === 3 && (
           <View style={styles.stage}>
-            <Text style={styles.hint}>听声音，选声调</Text>
+            {/* Custom display: show bare pinyin, fill in tones as child progresses */}
+            <View style={styles.toneProgressRow}>
+              {syllables.map((syl, i) => {
+                const bare = stripTone(syl.pinyin);
+                const isCompleted = i < currentSyllableIdx;
+                const isCurrent = i === currentSyllableIdx;
+                // Show toned version immediately when correct tone is selected
+                const justCompleted = isCurrent && toneResult === true;
+                const displayText = (isCompleted || justCompleted) ? syl.pinyin : bare;
+                const color = (isCompleted || justCompleted) ? toneColor(syl.tone) : (isCurrent ? colors.text : colors.textMuted);
+                const opacity = isCurrent ? 1 : (isCompleted ? 1 : 0.4);
+
+                return (
+                  <Text
+                    key={i}
+                    style={[
+                      styles.toneProgressText,
+                      { color, opacity },
+                    ]}
+                  >
+                    {displayText}
+                  </Text>
+                );
+              })}
+            </View>
             <SpeakButton
-              text={syllables[currentSyllableIdx]?.pinyin ?? ''}
+              text={item.characters?.[currentSyllableIdx] || syllables[currentSyllableIdx]?.pinyin || ''}
               autoPlay
+              autoPlayDelay={1000}
             />
-            <Text style={styles.syllableCount}>
-              第 {currentSyllableIdx + 1}/{syllables.length} 个音节
-            </Text>
+            <Text style={styles.hint}>选择正确的声调</Text>
             <LocalCorrection isCorrect={toneResult}>
               <ToneSelector
                 onSelect={handleToneSelect}
@@ -201,6 +236,9 @@ export default function PinyinScreen() {
                 <Text style={styles.hint}>拼出拼音，再选声调</Text>
                 <PinyinBuilder
                   syllables={syllables}
+                  autoPlayWord
+                  wordText={item.characters || item.pinyin}
+                  characters={item.characters}
                   onComplete={(correct) => {
                     if (correct) {
                       setStage4Step('tones');
@@ -214,12 +252,37 @@ export default function PinyinScreen() {
 
             {stage4Step === 'tones' && (
               <>
-                <Text style={styles.hint}>
-                  选声调 — {syllables[stage4ToneIdx]?.pinyin}
-                </Text>
-                <Text style={styles.syllableCount}>
-                  第 {stage4ToneIdx + 1}/{syllables.length} 个
-                </Text>
+                {/* Custom display: show bare pinyin, fill in tones as child progresses */}
+                <View style={styles.toneProgressRow}>
+                  {syllables.map((syl, i) => {
+                    const bare = stripTone(syl.pinyin);
+                    const isCompleted = i < stage4ToneIdx;
+                    const isCurrent = i === stage4ToneIdx;
+                    // Show toned version immediately when correct tone is selected
+                    const justCompleted = isCurrent && stage4ToneResult === true;
+                    const displayText = (isCompleted || justCompleted) ? syl.pinyin : bare;
+                    const color = (isCompleted || justCompleted) ? toneColor(syl.tone) : (isCurrent ? colors.text : colors.textMuted);
+                    const opacity = isCurrent ? 1 : (isCompleted ? 1 : 0.4);
+
+                    return (
+                      <Text
+                        key={i}
+                        style={[
+                          styles.toneProgressText,
+                          { color, opacity },
+                        ]}
+                      >
+                        {displayText}
+                      </Text>
+                    );
+                  })}
+                </View>
+                <SpeakButton
+                  text={item.characters?.[stage4ToneIdx] || syllables[stage4ToneIdx]?.pinyin || ''}
+                  autoPlay
+                  autoPlayDelay={1000}
+                />
+                <Text style={styles.hint}>选择正确的声调</Text>
                 <LocalCorrection isCorrect={stage4ToneResult}>
                   <ToneSelector
                     onSelect={handleStage4ToneSelect}
@@ -235,7 +298,7 @@ export default function PinyinScreen() {
         )}
       </View>
 
-      <CelebrationRoll visible={showCelebration} />
+      <CelebrationRoll visible={showCelebration} onDone={handleCelebrationDone} />
     </ScreenWrapper>
   );
 }
@@ -275,6 +338,15 @@ const styles = StyleSheet.create({
     color: colors.textLight,
     fontWeight: '500',
     textAlign: 'center',
+  },
+  toneProgressRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.lg,
+  },
+  toneProgressText: {
+    fontSize: 48,
+    fontWeight: '700',
   },
   syllableCount: {
     fontSize: typography.caption.fontSize,

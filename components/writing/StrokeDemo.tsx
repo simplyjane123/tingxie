@@ -8,6 +8,7 @@ import Animated, {
   withDelay,
   runOnJS,
 } from 'react-native-reanimated';
+import * as Speech from 'expo-speech';
 import MiziGrid from './MiziGrid';
 import { colors, spacing } from '../../constants/theme';
 import { WRITING_GRID_SIZE } from '../../constants/layout';
@@ -22,18 +23,28 @@ interface StrokeData {
 interface Props {
   characterData: StrokeData | null;
   character: string;
+  speakText?: string;
   onComplete?: () => void;
 }
 
-export default function StrokeDemo({ characterData, character, onComplete }: Props) {
+export default function StrokeDemo({ characterData, character, speakText, onComplete }: Props) {
   const [currentStroke, setCurrentStroke] = useState(-1);
   const [isPlaying, setIsPlaying] = useState(false);
+
+  const speak = useCallback(() => {
+    const textToSpeak = speakText || character;
+    Speech.speak(textToSpeak, {
+      language: 'zh-CN',
+      rate: 0.8,
+    });
+  }, [speakText, character]);
 
   const play = useCallback(() => {
     if (!characterData) return;
     setIsPlaying(true);
     setCurrentStroke(0);
-  }, [characterData]);
+    speak();
+  }, [characterData, speak]);
 
   useEffect(() => {
     if (!characterData || currentStroke < 0) return;
@@ -71,6 +82,12 @@ export default function StrokeDemo({ characterData, character, onComplete }: Pro
 
   return (
     <View style={styles.container}>
+      <Pressable onPress={play} style={styles.replayBtn}>
+        <Text style={styles.replayText}>
+          {isPlaying ? '播放中...' : '重播'}
+        </Text>
+      </Pressable>
+
       <MiziGrid>
         <Svg
           width={WRITING_GRID_SIZE}
@@ -89,12 +106,6 @@ export default function StrokeDemo({ characterData, character, onComplete }: Pro
           ))}
         </Svg>
       </MiziGrid>
-
-      <Pressable onPress={play} style={styles.replayBtn}>
-        <Text style={styles.replayText}>
-          {isPlaying ? '播放中...' : '重播'}
-        </Text>
-      </Pressable>
     </View>
   );
 }
