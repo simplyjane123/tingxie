@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, PanResponder, GestureResponderEvent, Pressable } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
-import * as Speech from 'expo-speech';
+import { speakChinese } from '../../utils/speech';
 import MiziGrid from './MiziGrid';
 import { colors, spacing } from '../../constants/theme';
 import { WRITING_GRID_SIZE } from '../../constants/layout';
@@ -74,7 +74,7 @@ export default function StrokeTracer({ characterData, character, wordLabel, spea
       if (nextIdx >= totalStrokes) {
         // Play speech first, then show celebration
         if (speakText) {
-          Speech.speak(speakText, { language: 'zh-CN', rate: 0.8 });
+          speakChinese(speakText);
         }
         setTimeout(() => {
           setShowCelebration(true);

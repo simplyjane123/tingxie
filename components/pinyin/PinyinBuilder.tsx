@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import * as Speech from 'expo-speech';
+import { speakChinese } from '../../utils/speech';
 import { Syllable } from '../../types';
 import { stripTone, generateDistractors } from '../../utils/pinyin';
 import { colors, spacing, radius } from '../../constants/theme';
@@ -12,13 +12,6 @@ interface Props {
   wordText?: string; // The full word to speak on success
   characters?: string; // Chinese characters for each syllable (e.g., "女儿")
 }
-
-const speakChinese = (text: string, rate: number = 0.8) => {
-  Speech.speak(text, {
-    language: 'zh-CN',
-    rate,
-  });
-};
 
 export default function PinyinBuilder({ syllables, onComplete, autoPlayWord = false, wordText, characters }: Props) {
   const targetParts = useMemo(() => syllables.map(s => stripTone(s.pinyin)), [syllables]);

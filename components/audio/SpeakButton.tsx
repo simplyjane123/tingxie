@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, Text, StyleSheet, View } from 'react-native';
-import * as Speech from 'expo-speech';
-import { colors, spacing, radius } from '../../constants/theme';
+import { speak as speakUtil } from '../../utils/speech';
+import { colors } from '../../constants/theme';
 
 interface Props {
   text: string;
@@ -28,7 +28,7 @@ export default function SpeakButton({ text, size = 'large', autoPlay = false, au
     if (speaking) return;
     setSpeaking(true);
     onPress?.();
-    Speech.speak(text, {
+    speakUtil(text, {
       language: 'zh-CN',
       rate: 0.8,
       onDone: () => setSpeaking(false),

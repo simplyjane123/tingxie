@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Dimensions } from 'react-native';
-import * as Speech from 'expo-speech';
+import { speakPraise } from '../../utils/speech';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -11,15 +11,6 @@ import Animated, {
   runOnJS,
   Easing,
 } from 'react-native-reanimated';
-
-const speakChinese = (text: string, onDone?: () => void) => {
-  Speech.speak(text, {
-    language: 'zh-CN',
-    rate: 0.9,
-    pitch: 1.1,
-    onDone,
-  });
-};
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -141,7 +132,7 @@ export default function CelebrationRoll({ visible, onDone }: Props) {
       }
     };
 
-    speakChinese(selectedPraise, () => {
+    speakPraise(selectedPraise, () => {
       speechDone = true;
       checkAndHide();
     });

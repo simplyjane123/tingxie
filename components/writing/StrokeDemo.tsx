@@ -8,7 +8,7 @@ import Animated, {
   withDelay,
   runOnJS,
 } from 'react-native-reanimated';
-import * as Speech from 'expo-speech';
+import { speakChinese } from '../../utils/speech';
 import MiziGrid from './MiziGrid';
 import { colors, spacing } from '../../constants/theme';
 import { WRITING_GRID_SIZE } from '../../constants/layout';
@@ -33,10 +33,7 @@ export default function StrokeDemo({ characterData, character, speakText, onComp
 
   const speak = useCallback(() => {
     const textToSpeak = speakText || character;
-    Speech.speak(textToSpeak, {
-      language: 'zh-CN',
-      rate: 0.8,
-    });
+    speakChinese(textToSpeak);
   }, [speakText, character]);
 
   const play = useCallback(() => {
