@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AppState, WordProgress } from '../types';
+import { AppState, WordProgress, Lesson } from '../types';
 
 const defaultProgress: WordProgress = {
   writingComplete: false,
@@ -17,6 +17,8 @@ export const useAppStore = create<AppState>()(
       currentItemIndex: 0,
       progress: {},
       isParentMode: false,
+      customLessons: [],
+      ocrApiKey: '',
 
       setLesson: (id) => set({ currentLessonId: id, currentItemIndex: 0 }),
 
@@ -76,6 +78,18 @@ export const useAppStore = create<AppState>()(
       getItemProgress: (itemId) => {
         return get().progress[itemId] ?? defaultProgress;
       },
+
+      addCustomLesson: (lesson) =>
+        set((state) => ({
+          customLessons: [...state.customLessons, lesson],
+        })),
+
+      deleteCustomLesson: (lessonId) =>
+        set((state) => ({
+          customLessons: state.customLessons.filter((l) => l.id !== lessonId),
+        })),
+
+      setOcrApiKey: (key) => set({ ocrApiKey: key }),
     }),
     {
       name: 'xiao-ting-xie-storage',
@@ -83,6 +97,8 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         progress: state.progress,
         currentLessonId: state.currentLessonId,
+        customLessons: state.customLessons,
+        ocrApiKey: state.ocrApiKey,
       }),
     },
   ),

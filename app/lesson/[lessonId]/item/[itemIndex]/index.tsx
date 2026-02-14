@@ -8,7 +8,8 @@ import { colors, spacing, radius, typography, toneColor } from '../../../../../c
 
 export default function TrackPickerScreen() {
   const { lessonId, itemIndex } = useLocalSearchParams<{ lessonId: string; itemIndex: string }>();
-  const lesson = getLessonById(lessonId ?? '');
+  const customLessons = useAppStore((s) => s.customLessons);
+  const lesson = getLessonById(lessonId ?? '', customLessons);
   const idx = parseInt(itemIndex ?? '0', 10);
   const item = lesson?.items[idx];
   const progress = useAppStore((s) => item ? s.progress[item.id] : undefined);

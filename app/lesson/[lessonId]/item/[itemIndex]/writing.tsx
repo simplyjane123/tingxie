@@ -15,7 +15,8 @@ type Mode = 'demo' | 'trace' | 'done';
 
 export default function WritingScreen() {
   const { lessonId, itemIndex } = useLocalSearchParams<{ lessonId: string; itemIndex: string }>();
-  const lesson = getLessonById(lessonId ?? '');
+  const customLessons = useAppStore((s) => s.customLessons);
+  const lesson = getLessonById(lessonId ?? '', customLessons);
   const idx = parseInt(itemIndex ?? '0', 10);
   const item = lesson?.items[idx];
 
@@ -72,9 +73,14 @@ export default function WritingScreen() {
   return (
     <ScreenWrapper>
       <View style={styles.header}>
-        <Pressable onPress={() => router.replace(`/lesson/${lessonId}`)} style={styles.backBtn}>
-          <Text style={styles.backText}>← 返回</Text>
-        </Pressable>
+        <View style={styles.headerTop}>
+          <Pressable onPress={() => router.replace(`/lesson/${lessonId}`)} style={styles.backBtn}>
+            <Text style={styles.backText}>← 返回</Text>
+          </Pressable>
+          <Pressable onPress={() => router.push(`/lesson/${lessonId}/test`)} style={styles.testListBtn}>
+            <Text style={styles.testListText}>📝 测试列表</Text>
+          </Pressable>
+        </View>
         <Text style={styles.modeLabel}>
           {mode === 'demo' ? '看一看' : mode === 'trace' ? '写一写' : '写好了!'}
         </Text>
@@ -155,8 +161,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
   },
+  headerTop: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+  },
   backBtn: {
-    alignSelf: 'flex-start',
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
   },
@@ -164,6 +176,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: colors.primary,
     fontWeight: '500',
+  },
+  testListBtn: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+  },
+  testListText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '600',
   },
   modeLabel: {
     fontSize: typography.title.fontSize,

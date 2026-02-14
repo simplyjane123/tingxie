@@ -15,8 +15,12 @@ export const allLessons: Lesson[] = [
   lesson6, lesson7, lesson8, lesson9, lesson10,
 ];
 
-export function getLessonById(id: string): Lesson | undefined {
-  return allLessons.find(l => l.id === id);
+export function getLessonById(id: string, customLessons: Lesson[] = []): Lesson | undefined {
+  return [...allLessons, ...customLessons].find(l => l.id === id);
+}
+
+export function getAllLessonsWithCustom(customLessons: Lesson[]): Lesson[] {
+  return [...allLessons, ...customLessons];
 }
 
 export {

@@ -9,7 +9,8 @@ import { colors, spacing, radius, typography, toneColor } from '../../../constan
 
 export default function WordMapScreen() {
   const { lessonId } = useLocalSearchParams<{ lessonId: string }>();
-  const lesson = getLessonById(lessonId ?? '');
+  const customLessons = useAppStore((s) => s.customLessons);
+  const lesson = getLessonById(lessonId ?? '', customLessons);
   const progress = useAppStore((s) => s.progress);
 
   if (!lesson) {
@@ -28,6 +29,15 @@ export default function WordMapScreen() {
         </Pressable>
         <Text style={styles.title}>{lesson.label}</Text>
         <Text style={styles.subtitle}>{lesson.lessonName} · {lesson.date}</Text>
+
+        {/* Test Mode Button */}
+        <Pressable
+          onPress={() => router.push(`/lesson/${lessonId}/test`)}
+          style={({ pressed }) => [styles.testModeBtn, pressed && { opacity: 0.8 }]}
+        >
+          <Text style={styles.testModeIcon}>📝</Text>
+          <Text style={styles.testModeText}>听写测试模式</Text>
+        </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={styles.grid} showsVerticalScrollIndicator={false}>
@@ -131,6 +141,29 @@ const styles = StyleSheet.create({
     fontSize: typography.caption.fontSize,
     color: colors.textLight,
     marginTop: spacing.xs,
+  },
+  testModeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+  testModeIcon: {
+    fontSize: 24,
+  },
+  testModeText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   grid: {
     flexDirection: 'row',

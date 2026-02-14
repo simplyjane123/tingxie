@@ -17,7 +17,8 @@ import { stripTone } from '../../../../../utils/pinyin';
 
 export default function PinyinScreen() {
   const { lessonId, itemIndex } = useLocalSearchParams<{ lessonId: string; itemIndex: string }>();
-  const lesson = getLessonById(lessonId ?? '');
+  const customLessons = useAppStore((s) => s.customLessons);
+  const lesson = getLessonById(lessonId ?? '', customLessons);
   const idx = parseInt(itemIndex ?? '0', 10);
   const item = lesson?.items[idx];
 
@@ -127,9 +128,14 @@ export default function PinyinScreen() {
   return (
     <ScreenWrapper>
       <View style={styles.header}>
-        <Pressable onPress={() => router.replace(`/lesson/${lessonId}`)} style={styles.backBtn}>
-          <Text style={styles.backText}>← 返回</Text>
-        </Pressable>
+        <View style={styles.headerTop}>
+          <Pressable onPress={() => router.replace(`/lesson/${lessonId}`)} style={styles.backBtn}>
+            <Text style={styles.backText}>← 返回</Text>
+          </Pressable>
+          <Pressable onPress={() => router.push(`/lesson/${lessonId}/test`)} style={styles.testListBtn}>
+            <Text style={styles.testListText}>📝 测试列表</Text>
+          </Pressable>
+        </View>
         <ProgressDots total={4} current={stage - 1} />
         <Text style={styles.stageLabel}>
           {stage === 1 && '听一听'}
@@ -309,8 +315,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
+  headerTop: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+  },
   backBtn: {
-    alignSelf: 'flex-start',
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
   },
@@ -318,6 +330,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: colors.primary,
     fontWeight: '500',
+  },
+  testListBtn: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+  },
+  testListText: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '600',
   },
   stageLabel: {
     fontSize: typography.title.fontSize,

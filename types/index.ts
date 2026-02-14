@@ -24,6 +24,8 @@ export interface Lesson {
   order: number;
   date: string;               // "1月30日"
   items: SpellingItem[];
+  school?: string;            // "Montfort Junior School"
+  grade?: string;             // "Primary 4"
 }
 
 export interface WordProgress {
@@ -38,6 +40,8 @@ export interface AppState {
   currentItemIndex: number;
   progress: Record<string, WordProgress>;
   isParentMode: boolean;
+  customLessons: Lesson[];
+  ocrApiKey: string;
 
   setLesson: (id: string) => void;
   setItemIndex: (i: number) => void;
@@ -47,4 +51,7 @@ export interface AppState {
   toggleParentMode: () => void;
   resetProgress: (lessonId: string) => void;
   getItemProgress: (itemId: string) => WordProgress;
+  addCustomLesson: (lesson: Lesson) => void;
+  deleteCustomLesson: (lessonId: string) => void;
+  setOcrApiKey: (key: string) => void;
 }

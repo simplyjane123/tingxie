@@ -28,7 +28,19 @@ if (Platform.OS === 'web' && typeof window !== 'undefined') {
 function getChineseVoice(): SpeechSynthesisVoice | null {
   if (typeof window === 'undefined' || !window.speechSynthesis) return null;
   const voices = window.speechSynthesis.getVoices();
-  // Prefer zh-CN, then zh-TW, then any zh
+
+  // Filter for Chinese voices
+  const chineseVoices = voices.filter((v) => v.lang.startsWith('zh'));
+
+  // Prefer female voices (common female voice names include Huihui, Ting-Ting, Yaoyao, etc.)
+  const femaleIndicators = ['huihui', 'ting-ting', 'yaoyao', 'female', 'woman'];
+  const femaleVoice = chineseVoices.find((v) =>
+    femaleIndicators.some(indicator => v.name.toLowerCase().includes(indicator))
+  );
+
+  if (femaleVoice) return femaleVoice;
+
+  // Fallback: prefer zh-CN, then zh-TW, then any zh
   return (
     voices.find((v) => v.lang === 'zh-CN') ||
     voices.find((v) => v.lang.startsWith('zh')) ||
