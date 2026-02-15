@@ -28,6 +28,12 @@ function detectLessons(lines: string[]): LessonGroup[] {
     // Matches: 听写1, 听写 1, 听写(3), 听写（三）, 听写(三)《标题》, etc.
     const lessonMatch = line.match(/(?:听写|ting\s*xie|lesson)\s*[（(]?\s*(\d+|[一二三四五六七八九十]+)\s*[）)]?/i);
 
+    // Debug logging
+    if (line.includes('听写') || line.includes('ting') || line.toLowerCase().includes('lesson')) {
+      console.log(`Checking line ${i}: "${line}"`);
+      console.log(`Match result:`, lessonMatch);
+    }
+
     if (lessonMatch) {
       // Start a new lesson
       currentLesson = {

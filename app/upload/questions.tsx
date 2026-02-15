@@ -25,6 +25,10 @@ export default function QuestionsScreen() {
       // Parse OCR text to extract lessons
       const lessonGroups = parseOcrWithLessons(ocrText);
 
+      // Debug logging
+      console.log('Detected lesson groups:', lessonGroups);
+      console.log('OCR text lines:', ocrText.split('\n').map((line, i) => `${i}: ${line}`));
+
       if (lessonGroups.length === 0) {
         setError('No lesson headers detected (e.g., "听写 1", "Lesson 1"). Please ensure your image contains lesson labels.');
         setLoading(false);
