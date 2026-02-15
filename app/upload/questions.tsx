@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, TextInput } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import ScreenWrapper from '../../components/common/ScreenWrapper';
 import { colors, spacing, radius, typography } from '../../constants/theme';
 import { parseOcrWithLessons, formatMultipleLessons } from '../../utils/simpleParser';
 
 export default function QuestionsScreen() {
-  const { ocrText, lessonId } = useLocalSearchParams<{ ocrText: string; lessonId: string }>();
+  const { ocrText: initialOcrText, lessonId } = useLocalSearchParams<{ ocrText: string; lessonId: string }>();
+  const [ocrText, setOcrText] = useState(initialOcrText || '');
   const [wantPinyin, setWantPinyin] = useState<boolean | null>(null);
   const [wantEnglish, setWantEnglish] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
@@ -76,12 +77,21 @@ export default function QuestionsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* OCR Preview */}
+        {/* OCR Preview - Editable */}
         <View style={styles.ocrPreview}>
           <Text style={styles.sectionTitle}>Detected Text:</Text>
-          <ScrollView style={styles.ocrBox} nestedScrollEnabled>
-            <Text style={styles.ocrText}>{ocrText}</Text>
-          </ScrollView>
+          <Text style={styles.sectionHint}>
+            You can edit or delete unwanted lines below
+          </Text>
+          <TextInput
+            style={styles.ocrInput}
+            value={ocrText}
+            onChangeText={setOcrText}
+            multiline
+            numberOfLines={8}
+            textAlignVertical="top"
+            placeholder="OCR text will appear here..."
+          />
         </View>
 
         {/* Question 1: Should generated list include pinyin? */}
@@ -208,18 +218,23 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
   },
-  ocrBox: {
+  sectionHint: {
+    fontSize: 13,
+    color: colors.textLight,
+    fontStyle: 'italic',
+  },
+  ocrInput: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
     padding: spacing.md,
-    maxHeight: 150,
+    minHeight: 150,
+    maxHeight: 250,
     borderWidth: 1,
     borderColor: colors.border,
-  },
-  ocrText: {
     fontSize: 14,
     color: colors.text,
     lineHeight: 20,
+    fontFamily: 'monospace',
   },
   questionSection: {
     gap: spacing.sm,
