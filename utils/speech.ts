@@ -24,28 +24,41 @@ if (Platform.OS === 'web' && typeof window !== 'undefined') {
   window.addEventListener('touchstart', unlock);
 }
 
-// Find the best Chinese voice available on the browser
+// Find the best Chinese female voice available on the browser
 function getChineseVoice(): SpeechSynthesisVoice | null {
   if (typeof window === 'undefined' || !window.speechSynthesis) return null;
   const voices = window.speechSynthesis.getVoices();
 
   // Filter for Chinese voices
   const chineseVoices = voices.filter((v) => v.lang.startsWith('zh'));
+  if (chineseVoices.length === 0) return null;
 
-  // Prefer female voices (common female voice names include Huihui, Ting-Ting, Yaoyao, etc.)
-  const femaleIndicators = ['huihui', 'ting-ting', 'yaoyao', 'female', 'woman'];
-  const femaleVoice = chineseVoices.find((v) =>
-    femaleIndicators.some(indicator => v.name.toLowerCase().includes(indicator))
+  // Known male voice names to exclude
+  const maleIndicators = ['kangkang', 'yunyang', 'yunxi', 'yunze', 'male', ' man'];
+
+  // Known female voice names to prefer
+  const femaleIndicators = [
+    'huihui', 'ting-ting', 'yaoyao', 'lili', 'xiaoyi', 'xiaoxiao',
+    'xiaochen', 'xiaohan', 'xiaomo', 'xiaorui', 'xiaoxuan', 'xiaoyou',
+    'meijia', 'siqi', 'yunying', 'female', 'woman',
+  ];
+
+  const nameLower = (v: SpeechSynthesisVoice) => v.name.toLowerCase();
+
+  // First: find a known female voice
+  const knownFemale = chineseVoices.find((v) =>
+    femaleIndicators.some(f => nameLower(v).includes(f))
   );
+  if (knownFemale) return knownFemale;
 
-  if (femaleVoice) return femaleVoice;
-
-  // Fallback: prefer zh-CN, then zh-TW, then any zh
-  return (
-    voices.find((v) => v.lang === 'zh-CN') ||
-    voices.find((v) => v.lang.startsWith('zh')) ||
-    null
+  // Second: find any Chinese voice that is NOT a known male voice
+  const notMale = chineseVoices.find((v) =>
+    !maleIndicators.some(m => nameLower(v).includes(m))
   );
+  if (notMale) return notMale;
+
+  // Fallback: any Chinese voice
+  return chineseVoices[0];
 }
 
 interface SpeakOptions {
@@ -60,7 +73,7 @@ export function speak(text: string, options: SpeakOptions = {}) {
   const {
     language = 'zh-CN',
     rate = 0.8,
-    pitch = 1.0,
+    pitch = 1.1,
     onDone,
     onError,
   } = options;

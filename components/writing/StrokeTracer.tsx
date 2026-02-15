@@ -110,20 +110,36 @@ export default function StrokeTracer({ characterData, character, wordLabel, spea
       return;
     }
 
+    const scale = WRITING_GRID_SIZE / 1024;
+
+    // Check start position: drawn stroke must start near expected start point
+    const expectedStartX = expectedMedian[0][0] * scale;
+    const expectedStartY = (900 - expectedMedian[0][1]) * scale;
+    const startDist = Math.sqrt(
+      (drawnPoints[0].x - expectedStartX) ** 2 +
+      (drawnPoints[0].y - expectedStartY) ** 2
+    );
+
+    // Reject if start position is too far (>30% of grid size)
+    const positionThreshold = WRITING_GRID_SIZE * 0.30;
+    if (startDist > positionThreshold) {
+      handleIncorrect();
+      return;
+    }
+
     // Calculate drawn stroke direction
     const drawnDx = drawnPoints[drawnPoints.length - 1].x - drawnPoints[0].x;
     const drawnDy = drawnPoints[drawnPoints.length - 1].y - drawnPoints[0].y;
     const drawnLen = Math.sqrt(drawnDx * drawnDx + drawnDy * drawnDy);
 
     // Calculate expected stroke direction
-    const scale = WRITING_GRID_SIZE / 1024;
     const first = expectedMedian[0];
     const last = expectedMedian[expectedMedian.length - 1];
     const expectedDx = (last[0] - first[0]) * scale;
     const expectedDy = -(last[1] - first[1]) * scale; // Y is flipped
     const expectedLen = Math.sqrt(expectedDx * expectedDx + expectedDy * expectedDy);
 
-    // For very short strokes (dots), accept if user drew anything
+    // For very short strokes (dots), accept if start position is close enough
     if (expectedLen < 20 || drawnLen < 15) {
       handleCorrect();
       return;
@@ -132,8 +148,8 @@ export default function StrokeTracer({ characterData, character, wordLabel, spea
     // Check direction using dot product (normalized)
     const dot = (drawnDx * expectedDx + drawnDy * expectedDy) / (drawnLen * expectedLen + 0.001);
 
-    // Accept if direction is roughly correct (dot > -0.2 means < ~100 degrees off)
-    if (dot > -0.2) {
+    // Accept if direction is roughly correct (dot > 0.3 means < ~72 degrees off)
+    if (dot > 0.3) {
       handleCorrect();
     } else {
       handleIncorrect();
