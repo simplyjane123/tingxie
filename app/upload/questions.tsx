@@ -7,13 +7,15 @@ import { parsePinyinString } from '../../utils/pinyin';
 
 export default function QuestionsScreen() {
   const { ocrText, lessonId } = useLocalSearchParams<{ ocrText: string; lessonId: string }>();
-  const [includesPinyin, setIncludesPinyin] = useState<boolean | null>(null);
+  const [hasPinyin, setHasPinyin] = useState<boolean | null>(null);
+  const [wantPinyin, setWantPinyin] = useState<boolean | null>(null);
+  const [wantEnglish, setWantEnglish] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
-    if (includesPinyin === null) {
-      setError('Please answer the question');
+    if (hasPinyin === null || wantPinyin === null || wantEnglish === null) {
+      setError('Please answer all questions');
       return;
     }
 
@@ -26,29 +28,33 @@ export default function QuestionsScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ocrText,
-          includesPinyin,
+          hasPinyin,
+          wantPinyin,
+          wantEnglish,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to process with AI');
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `API error: ${response.status}`);
       }
 
       const { items: rawItems } = await response.json();
 
       // Transform Claude's output to SpellingItem format
       const items = rawItems.map((item: any, index: number) => {
-        const syllables = parsePinyinString(item.pinyin || '');
+        const pinyin = wantPinyin ? (item.pinyin || '') : '';
+        const syllables = wantPinyin ? parsePinyinString(pinyin) : [];
         const type = syllables.length === 1 ? 'hanzi' : 'pinyin';
 
         return {
           id: `${lessonId}-${index}`,
           lessonId,
           type,
-          pinyin: item.pinyin || '',
+          pinyin,
           syllables,
           characters: item.characters || '',
-          english: item.english || '',
+          english: wantEnglish ? (item.english || '') : '',
         };
       });
 
@@ -68,6 +74,7 @@ export default function QuestionsScreen() {
         },
       });
     } catch (e: any) {
+      console.error('AI processing error:', e);
       setError(e.message || 'AI processing failed. Please try again.');
     } finally {
       setLoading(false);
@@ -93,29 +100,85 @@ export default function QuestionsScreen() {
           </ScrollView>
         </View>
 
-        {/* Question: Does it include pinyin? */}
+        {/* Question 1: Does the uploaded image contain pinyin? */}
         <View style={styles.questionSection}>
-          <Text style={styles.questionTitle}>Does this list include Hanyu Pinyin?</Text>
+          <Text style={styles.questionTitle}>1. Does the uploaded list contain Hanyu Pinyin?</Text>
           <Text style={styles.questionHint}>
-            If the list shows pinyin (e.g., wǒ, nǐ, tā) next to Chinese characters, select YES.
+            Look at the text above. If you see pinyin (e.g., wǒ, nǐ, tā) next to Chinese characters, select YES.
           </Text>
 
           <View style={styles.optionsRow}>
             <Pressable
-              style={[styles.optionBtn, includesPinyin === true && styles.optionBtnSelected]}
-              onPress={() => setIncludesPinyin(true)}
+              style={[styles.optionBtn, hasPinyin === true && styles.optionBtnSelected]}
+              onPress={() => setHasPinyin(true)}
             >
-              <Text style={[styles.optionText, includesPinyin === true && styles.optionTextSelected]}>
-                ✓ Yes, includes pinyin
+              <Text style={[styles.optionText, hasPinyin === true && styles.optionTextSelected]}>
+                ✓ Yes, has pinyin
               </Text>
             </Pressable>
 
             <Pressable
-              style={[styles.optionBtn, includesPinyin === false && styles.optionBtnSelected]}
-              onPress={() => setIncludesPinyin(false)}
+              style={[styles.optionBtn, hasPinyin === false && styles.optionBtnSelected]}
+              onPress={() => setHasPinyin(false)}
             >
-              <Text style={[styles.optionText, includesPinyin === false && styles.optionTextSelected]}>
+              <Text style={[styles.optionText, hasPinyin === false && styles.optionTextSelected]}>
                 ✗ No pinyin shown
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Question 2: Should generated list include pinyin? */}
+        <View style={styles.questionSection}>
+          <Text style={styles.questionTitle}>2. Should the generated list include Hanyu Pinyin?</Text>
+          <Text style={styles.questionHint}>
+            Do you want pinyin in your final lesson? (If the uploaded list has pinyin, we'll use it. Otherwise, AI will infer it.)
+          </Text>
+
+          <View style={styles.optionsRow}>
+            <Pressable
+              style={[styles.optionBtn, wantPinyin === true && styles.optionBtnSelected]}
+              onPress={() => setWantPinyin(true)}
+            >
+              <Text style={[styles.optionText, wantPinyin === true && styles.optionTextSelected]}>
+                ✓ Include pinyin
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[styles.optionBtn, wantPinyin === false && styles.optionBtnSelected]}
+              onPress={() => setWantPinyin(false)}
+            >
+              <Text style={[styles.optionText, wantPinyin === false && styles.optionTextSelected]}>
+                ✗ No pinyin needed
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Question 3: Should generated list include English? */}
+        <View style={styles.questionSection}>
+          <Text style={styles.questionTitle}>3. Should the generated list include English translations?</Text>
+          <Text style={styles.questionHint}>
+            Do you want English meanings in your final lesson? (AI will extract them if present in the image.)
+          </Text>
+
+          <View style={styles.optionsRow}>
+            <Pressable
+              style={[styles.optionBtn, wantEnglish === true && styles.optionBtnSelected]}
+              onPress={() => setWantEnglish(true)}
+            >
+              <Text style={[styles.optionText, wantEnglish === true && styles.optionTextSelected]}>
+                ✓ Include English
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[styles.optionBtn, wantEnglish === false && styles.optionBtnSelected]}
+              onPress={() => setWantEnglish(false)}
+            >
+              <Text style={[styles.optionText, wantEnglish === false && styles.optionTextSelected]}>
+                ✗ No English needed
               </Text>
             </Pressable>
           </View>

@@ -11,7 +11,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { ocrText, includesPinyin } = req.body;
+    const { ocrText, hasPinyin, wantPinyin, wantEnglish } = req.body;
     if (!ocrText) {
       return res.status(400).json({ error: 'No OCR text provided' });
     }
@@ -26,8 +26,8 @@ The OCR text may contain:
 
 Your goal:
 1. Extract ONLY the actual vocabulary words (Chinese characters)
-2. Identify the corresponding pinyin if present in the text
-3. Extract English translations if present
+2. ${hasPinyin ? 'Extract the pinyin from the text' : 'Infer the correct pinyin with tone marks for each word'}
+3. ${wantEnglish ? 'Extract English translations if present in the text' : 'You may skip English translations'}
 4. Ignore headers, instructions, dates, and formatting
 
 Return a JSON array of items with this structure:
@@ -41,19 +41,20 @@ Return a JSON array of items with this structure:
 
 Rules:
 - Only include words that have Chinese characters
-- If pinyin is missing from the OCR but you can infer it from the characters, include it with tone marks
-- If English is missing, leave it as empty string ""
+- ${hasPinyin ? 'Use the pinyin exactly as shown in the OCR text' : 'Infer pinyin with correct tone marks (ā, á, ǎ, à, ē, é, ě, è, etc.)'}
+- If English is missing or not requested, set it to empty string ""
 - Keep multi-character words together (e.g., "雨衣" not "雨" + "衣")
 - Remove duplicates
-- Skip any non-vocabulary content (instructions, dates, etc.)`;
+- Skip any non-vocabulary content (headers like "听写三", dates, instructions, etc.)
+- For multi-character words, the pinyin should have syllables separated by spaces (e.g., "yǔ yī" for "雨衣")`;
 
     const userPrompt = `Here is the OCR text from a Chinese spelling list:
 
 ${ocrText}
 
-${includesPinyin ? 'This list INCLUDES pinyin. Extract the pinyin from the text.' : 'This list does NOT include pinyin. Infer the correct pinyin with tone marks for each word.'}
-
-Extract the vocabulary words and return them as a JSON array.`;
+Extract the vocabulary words and return them as a JSON array. Remember:
+- ${hasPinyin ? 'This list HAS pinyin - extract it from the text' : 'This list DOES NOT have pinyin - infer the correct pinyin with tone marks'}
+- ${wantEnglish ? 'Include English translations if found' : 'English translations not needed'}`;
 
     const response = await fetch(ANTHROPIC_API_URL, {
       method: 'POST',
@@ -92,12 +93,13 @@ Extract the vocabulary words and return them as a JSON array.`;
     // Extract JSON from the response (Claude might wrap it in markdown)
     const jsonMatch = content.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
-      return res.status(500).json({ error: 'Failed to parse Claude response' });
+      return res.status(500).json({ error: 'Failed to parse Claude response', rawResponse: content });
     }
 
     const items = JSON.parse(jsonMatch[0]);
     return res.status(200).json({ items });
   } catch (e: any) {
+    console.error('Claude API error:', e);
     return res.status(500).json({ error: e.message || 'Claude processing failed' });
   }
 }
