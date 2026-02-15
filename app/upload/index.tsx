@@ -5,7 +5,6 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import ScreenWrapper from '../../components/common/ScreenWrapper';
 import { recognizeImage } from '../../utils/ocr';
-import { parseOcrText } from '../../utils/ocrParser';
 import { colors, spacing, radius, typography } from '../../constants/theme';
 
 export default function UploadScreen() {
@@ -71,8 +70,8 @@ export default function UploadScreen() {
             reader.readAsDataURL(blob);
           } else {
             const FileSystem = await import('expo-file-system');
-            const base64 = await FileSystem.readAsStringAsync(asset.uri, {
-              encoding: FileSystem.EncodingType.Base64,
+            const base64 = await FileSystem.default.readAsStringAsync(asset.uri, {
+              encoding: 'base64' as any,
             });
             setImageBase64(base64);
           }
@@ -98,20 +97,18 @@ export default function UploadScreen() {
     try {
       const ocrText = await recognizeImage(imageBase64);
       const lessonId = `custom-${Date.now()}`;
-      const items = parseOcrText(ocrText, lessonId);
 
-      if (items.length === 0) {
-        setError('No words detected. Try a clearer image.');
+      if (!ocrText || ocrText.trim().length === 0) {
+        setError('No text detected. Try a clearer image.');
         setLoading(false);
         return;
       }
 
-      // Navigate to review screen with parsed data
+      // Navigate to questions screen for AI processing
       router.push({
-        pathname: '/upload/review',
+        pathname: '/upload/questions',
         params: {
           lessonId,
-          items: JSON.stringify(items),
           ocrText,
         },
       });

@@ -30,7 +30,7 @@ export default function SpeakButton({ text, size = 'large', autoPlay = false, au
     onPress?.();
     speakUtil(text, {
       language: 'zh-CN',
-      rate: 0.8,
+      rate: 0.65,
       onDone: () => setSpeaking(false),
       onError: () => setSpeaking(false),
     });

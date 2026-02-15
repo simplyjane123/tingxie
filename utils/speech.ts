@@ -97,7 +97,7 @@ async function speakCloudTTS(text: string, onDone?: () => void, onError?: () => 
 export function speak(text: string, options: SpeakOptions = {}) {
   const {
     language = 'zh-CN',
-    rate = 0.8,
+    rate = 0.65,
     pitch = 1.0,
     onDone,
     onError,
@@ -126,7 +126,7 @@ function speakWeb(text: string, options: SpeakOptions) {
 
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = options.language || 'zh-CN';
-  utterance.rate = options.rate || 0.8;
+  utterance.rate = options.rate || 0.65;
   utterance.pitch = options.pitch || 1.0;
 
   const voice = getChineseVoice();
@@ -145,7 +145,7 @@ async function speakNative(text: string, options: SpeakOptions) {
     const Speech = await import('expo-speech');
     Speech.speak(text, {
       language: options.language || 'zh-CN',
-      rate: options.rate || 0.8,
+      rate: options.rate || 0.65,
       pitch: options.pitch || 1.0,
       onDone: options.onDone,
       onError: options.onError,
@@ -156,11 +156,11 @@ async function speakNative(text: string, options: SpeakOptions) {
 }
 
 /** Convenience for Chinese speech */
-export function speakChinese(text: string, rate = 0.8, onDone?: () => void) {
+export function speakChinese(text: string, rate = 0.65, onDone?: () => void) {
   speak(text, { language: 'zh-CN', rate, onDone });
 }
 
 /** Convenience for Chinese praise with higher pitch */
 export function speakPraise(text: string, onDone?: () => void) {
-  speak(text, { language: 'zh-CN', rate: 0.9, pitch: 1.0, onDone });
+  speak(text, { language: 'zh-CN', rate: 0.75, pitch: 1.0, onDone });
 }
