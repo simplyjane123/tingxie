@@ -124,7 +124,7 @@ export default function ReviewScreen() {
     };
 
     addCustomLesson(lesson);
-    router.replace('/');
+    router.replace(`/lesson/${id}`);
   };
 
   return (

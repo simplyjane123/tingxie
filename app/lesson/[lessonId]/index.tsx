@@ -1,10 +1,11 @@
-import React from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Pressable, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import ScreenWrapper from '../../../components/common/ScreenWrapper';
 import ToneCurve from '../../../components/pinyin/ToneCurve';
 import { getLessonById } from '../../../data/lessons';
 import { useAppStore } from '../../../store/useAppStore';
+import { encodeLessonToUrl } from '../../../utils/shareLesson';
 import { colors, spacing, radius, typography, toneColor } from '../../../constants/theme';
 
 export default function WordMapScreen() {
@@ -12,6 +13,20 @@ export default function WordMapScreen() {
   const customLessons = useAppStore((s) => s.customLessons);
   const lesson = getLessonById(lessonId ?? '', customLessons);
   const progress = useAppStore((s) => s.progress);
+  const [copied, setCopied] = useState(false);
+  const isCustom = lesson?.id.startsWith('custom-') ?? false;
+
+  const handleShare = async () => {
+    if (!lesson) return;
+    const url = encodeLessonToUrl(lesson);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      Alert.alert('Share Link', url);
+    }
+  };
 
   if (!lesson) {
     return (
@@ -38,6 +53,18 @@ export default function WordMapScreen() {
           <Text style={styles.testModeIcon}>📝</Text>
           <Text style={styles.testModeText}>听写测试模式</Text>
         </Pressable>
+
+        {/* Share Button - custom lessons only */}
+        {isCustom && (
+          <Pressable
+            onPress={handleShare}
+            style={({ pressed }) => [styles.shareBtn, pressed && { opacity: 0.8 }]}
+          >
+            <Text style={styles.shareBtnText}>
+              {copied ? 'Link Copied!' : 'Share Lesson'}
+            </Text>
+          </Pressable>
+        )}
       </View>
 
       <ScrollView contentContainerStyle={styles.grid} showsVerticalScrollIndicator={false}>
@@ -164,6 +191,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  shareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+    borderRadius: radius.lg,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+  },
+  shareBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
   },
   grid: {
     flexDirection: 'row',
