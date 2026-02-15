@@ -7,14 +7,13 @@ import { parsePinyinString } from '../../utils/pinyin';
 
 export default function QuestionsScreen() {
   const { ocrText, lessonId } = useLocalSearchParams<{ ocrText: string; lessonId: string }>();
-  const [hasPinyin, setHasPinyin] = useState<boolean | null>(null);
   const [wantPinyin, setWantPinyin] = useState<boolean | null>(null);
   const [wantEnglish, setWantEnglish] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
-    if (hasPinyin === null || wantPinyin === null || wantEnglish === null) {
+    if (wantPinyin === null || wantEnglish === null) {
       setError('Please answer all questions');
       return;
     }
@@ -28,7 +27,6 @@ export default function QuestionsScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ocrText,
-          hasPinyin,
           wantPinyin,
           wantEnglish,
         }),
@@ -59,7 +57,7 @@ export default function QuestionsScreen() {
       });
 
       if (items.length === 0) {
-        setError('No words detected. Try adjusting your answers or use a clearer image.');
+        setError('No words detected. Try using a clearer image.');
         setLoading(false);
         return;
       }
@@ -88,7 +86,7 @@ export default function QuestionsScreen() {
           <Text style={styles.backText}>← 返回</Text>
         </Pressable>
         <Text style={styles.title}>AI Processing</Text>
-        <Text style={styles.subtitle}>Help the AI understand your list</Text>
+        <Text style={styles.subtitle}>Customize your lesson</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -100,39 +98,11 @@ export default function QuestionsScreen() {
           </ScrollView>
         </View>
 
-        {/* Question 1: Does the uploaded image contain pinyin? */}
+        {/* Question 1: Should generated list include pinyin? */}
         <View style={styles.questionSection}>
-          <Text style={styles.questionTitle}>1. Does the uploaded list contain Hanyu Pinyin?</Text>
+          <Text style={styles.questionTitle}>1. Should the generated list include Hanyu Pinyin?</Text>
           <Text style={styles.questionHint}>
-            Look at the text above. If you see pinyin (e.g., wǒ, nǐ, tā) next to Chinese characters, select YES.
-          </Text>
-
-          <View style={styles.optionsRow}>
-            <Pressable
-              style={[styles.optionBtn, hasPinyin === true && styles.optionBtnSelected]}
-              onPress={() => setHasPinyin(true)}
-            >
-              <Text style={[styles.optionText, hasPinyin === true && styles.optionTextSelected]}>
-                ✓ Yes, has pinyin
-              </Text>
-            </Pressable>
-
-            <Pressable
-              style={[styles.optionBtn, hasPinyin === false && styles.optionBtnSelected]}
-              onPress={() => setHasPinyin(false)}
-            >
-              <Text style={[styles.optionText, hasPinyin === false && styles.optionTextSelected]}>
-                ✗ No pinyin shown
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Question 2: Should generated list include pinyin? */}
-        <View style={styles.questionSection}>
-          <Text style={styles.questionTitle}>2. Should the generated list include Hanyu Pinyin?</Text>
-          <Text style={styles.questionHint}>
-            Do you want pinyin in your final lesson? (If the uploaded list has pinyin, we'll use it. Otherwise, AI will infer it.)
+            AI will extract pinyin from the image if present, or infer it with correct tone marks.
           </Text>
 
           <View style={styles.optionsRow}>
@@ -156,11 +126,11 @@ export default function QuestionsScreen() {
           </View>
         </View>
 
-        {/* Question 3: Should generated list include English? */}
+        {/* Question 2: Should generated list include English? */}
         <View style={styles.questionSection}>
-          <Text style={styles.questionTitle}>3. Should the generated list include English translations?</Text>
+          <Text style={styles.questionTitle}>2. Should the generated list include English translations?</Text>
           <Text style={styles.questionHint}>
-            Do you want English meanings in your final lesson? (AI will extract them if present in the image.)
+            AI will extract English meanings if present in the image.
           </Text>
 
           <View style={styles.optionsRow}>

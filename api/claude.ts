@@ -11,12 +11,12 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { ocrText, hasPinyin, wantPinyin, wantEnglish } = req.body;
+    const { ocrText, wantPinyin, wantEnglish } = req.body;
     if (!ocrText) {
       return res.status(400).json({ error: 'No OCR text provided' });
     }
 
-    const systemPrompt = `You are a Chinese language learning assistant. Your task is to extract spelling/dictation words from OCR text of a Chinese spelling list.
+    const systemPrompt = `You are a Chinese language learning assistant. Extract spelling/dictation words from OCR text of a Chinese spelling list.
 
 The OCR text may contain:
 - Chinese characters (汉字)
@@ -24,13 +24,13 @@ The OCR text may contain:
 - English translations
 - Numbers, formatting, headers, and other noise
 
-Your goal:
+Your task:
 1. Extract ONLY the actual vocabulary words (Chinese characters)
-2. ${hasPinyin ? 'Extract the pinyin from the text' : 'Infer the correct pinyin with tone marks for each word'}
-3. ${wantEnglish ? 'Extract English translations if present in the text' : 'You may skip English translations'}
+2. Extract pinyin from the text if present, otherwise infer it with correct tone marks
+3. ${wantEnglish ? 'Extract English translations if present' : 'Skip English translations'}
 4. Ignore headers, instructions, dates, and formatting
 
-Return a JSON array of items with this structure:
+Return a JSON array:
 [
   {
     "characters": "汉字",
@@ -40,21 +40,18 @@ Return a JSON array of items with this structure:
 ]
 
 Rules:
-- Only include words that have Chinese characters
-- ${hasPinyin ? 'Use the pinyin exactly as shown in the OCR text' : 'Infer pinyin with correct tone marks (ā, á, ǎ, à, ē, é, ě, è, etc.)'}
-- If English is missing or not requested, set it to empty string ""
-- Keep multi-character words together (e.g., "雨衣" not "雨" + "衣")
-- Remove duplicates
-- Skip any non-vocabulary content (headers like "听写三", dates, instructions, etc.)
-- For multi-character words, the pinyin should have syllables separated by spaces (e.g., "yǔ yī" for "雨衣")`;
+- Only include items with Chinese characters
+- For pinyin: use what's in the text, or infer with correct tone marks (ā, á, ǎ, à, etc.)
+- Multi-character words: pinyin has syllables separated by spaces (e.g., "yǔ yī" for "雨衣")
+- If English is missing or not requested, use empty string ""
+- Skip headers like "听写三", dates, instructions, page numbers
+- Remove duplicates`;
 
-    const userPrompt = `Here is the OCR text from a Chinese spelling list:
+    const userPrompt = `Extract vocabulary from this OCR text:
 
 ${ocrText}
 
-Extract the vocabulary words and return them as a JSON array. Remember:
-- ${hasPinyin ? 'This list HAS pinyin - extract it from the text' : 'This list DOES NOT have pinyin - infer the correct pinyin with tone marks'}
-- ${wantEnglish ? 'Include English translations if found' : 'English translations not needed'}`;
+Return a JSON array of vocabulary items.`;
 
     const response = await fetch(ANTHROPIC_API_URL, {
       method: 'POST',
@@ -78,8 +75,9 @@ Extract the vocabulary words and return them as a JSON array. Remember:
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.error('Claude API error:', errorData);
       return res.status(response.status).json({
-        error: errorData?.error?.message || `Claude API request failed: ${response.status}`,
+        error: errorData?.error?.message || `Claude API failed: ${response.status}`,
       });
     }
 
@@ -90,13 +88,23 @@ Extract the vocabulary words and return them as a JSON array. Remember:
       return res.status(500).json({ error: 'No response from Claude' });
     }
 
-    // Extract JSON from the response (Claude might wrap it in markdown)
-    const jsonMatch = content.match(/\[[\s\S]*\]/);
+    // Extract JSON from response (Claude might wrap it in markdown code blocks)
+    let jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
     if (!jsonMatch) {
-      return res.status(500).json({ error: 'Failed to parse Claude response', rawResponse: content });
+      jsonMatch = content.match(/\[[\s\S]*\]/);
     }
 
-    const items = JSON.parse(jsonMatch[0]);
+    if (!jsonMatch) {
+      console.error('Failed to extract JSON from Claude response:', content);
+      return res.status(500).json({
+        error: 'Could not parse AI response',
+        rawResponse: content.substring(0, 200)
+      });
+    }
+
+    const jsonText = jsonMatch[1] || jsonMatch[0];
+    const items = JSON.parse(jsonText);
+
     return res.status(200).json({ items });
   } catch (e: any) {
     console.error('Claude API error:', e);
