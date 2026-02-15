@@ -1,19 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Image, TextInput, ActivityIndicator, Platform, Alert } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Image, ActivityIndicator, Platform } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import ScreenWrapper from '../../components/common/ScreenWrapper';
-import { useAppStore } from '../../store/useAppStore';
 import { recognizeImage } from '../../utils/ocr';
 import { parseOcrText } from '../../utils/ocrParser';
 import { colors, spacing, radius, typography } from '../../constants/theme';
 
 export default function UploadScreen() {
-  const ocrApiKey = useAppStore((s) => s.ocrApiKey);
-  const setOcrApiKey = useAppStore((s) => s.setOcrApiKey);
-
-  const [apiKey, setApiKey] = useState(ocrApiKey);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -97,20 +92,11 @@ export default function UploadScreen() {
       return;
     }
 
-    const key = apiKey.trim();
-    if (!key) {
-      setError('Please enter your Google Cloud Vision API key');
-      return;
-    }
-
-    // Save the API key
-    setOcrApiKey(key);
-
     setLoading(true);
     setError(null);
 
     try {
-      const ocrText = await recognizeImage(imageBase64, key);
+      const ocrText = await recognizeImage(imageBase64);
       const lessonId = `custom-${Date.now()}`;
       const items = parseOcrText(ocrText, lessonId);
 
@@ -147,22 +133,6 @@ export default function UploadScreen() {
       </View>
 
       <View style={styles.content}>
-        {/* API Key input */}
-        {!ocrApiKey && (
-          <View style={styles.apiKeySection}>
-            <Text style={styles.label}>Google Cloud Vision API Key</Text>
-            <TextInput
-              style={styles.apiKeyInput}
-              value={apiKey}
-              onChangeText={setApiKey}
-              placeholder="Enter your API key"
-              placeholderTextColor={colors.textMuted}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-          </View>
-        )}
-
         {/* Image preview */}
         {imageUri ? (
           <View style={styles.previewContainer}>
@@ -239,23 +209,6 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: spacing.md,
     gap: spacing.lg,
-  },
-  apiKeySection: {
-    gap: spacing.xs,
-  },
-  label: {
-    fontSize: 14,
-    color: colors.textLight,
-    fontWeight: '500',
-  },
-  apiKeyInput: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: spacing.sm,
-    fontSize: 14,
-    color: colors.text,
-    backgroundColor: colors.surface,
   },
   previewContainer: {
     flex: 1,
