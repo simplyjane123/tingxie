@@ -43,22 +43,11 @@ function detectLessons(lines: string[]): LessonGroup[] {
     // Check if line contains Chinese characters
     const hasChineseChars = /[\u4e00-\u9fa5]/.test(line);
 
-    if (hasChineseChars) {
+    if (hasChineseChars && currentLesson) {
+      // Only extract items after a lesson header has been detected
       const item = parseLineToItem(line, lines, i);
       if (item) {
-        if (currentLesson) {
-          currentLesson.items.push(item);
-        } else {
-          // No lesson detected yet, create a default one
-          if (lessonGroups.length === 0) {
-            currentLesson = {
-              lessonName: 'Lesson 1',
-              items: []
-            };
-            lessonGroups.push(currentLesson);
-          }
-          lessonGroups[lessonGroups.length - 1].items.push(item);
-        }
+        currentLesson.items.push(item);
       }
     }
   }
