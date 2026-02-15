@@ -14,7 +14,7 @@ interface LessonGroup {
 
 /**
  * Detect lesson boundaries in OCR text
- * Matches: "听写 1", "听写1", "Ting Xie 1", "Lesson 1", etc.
+ * Matches: "听写 1", "听写1", "听写(3)", "听写（三）", "听写(三)《标题》", etc.
  */
 function detectLessons(lines: string[]): LessonGroup[] {
   const lessonGroups: LessonGroup[] = [];
@@ -25,7 +25,8 @@ function detectLessons(lines: string[]): LessonGroup[] {
     if (!line) continue;
 
     // Check if this line is a lesson header
-    const lessonMatch = line.match(/(?:听写|ting\s*xie|lesson)\s*(\d+|[一二三四五六七八九十]+)/i);
+    // Matches: 听写1, 听写 1, 听写(3), 听写（三）, 听写(三)《标题》, etc.
+    const lessonMatch = line.match(/(?:听写|ting\s*xie|lesson)\s*[（(]?\s*(\d+|[一二三四五六七八九十]+)\s*[）)]?/i);
 
     if (lessonMatch) {
       // Start a new lesson
@@ -120,7 +121,7 @@ export function parseOcrSimple(ocrText: string): ParsedItem[] {
   // If "Lesson 1" was auto-created (no headers found), don't return anything
   if (lessonGroups.length === 1 && lessonGroups[0].lessonName === 'Lesson 1') {
     // Check if this was auto-created by looking at the OCR text
-    const hasExplicitHeader = /(?:听写|ting\s*xie|lesson)\s*(\d+|[一二三四五六七八九十]+)/i.test(ocrText);
+    const hasExplicitHeader = /(?:听写|ting\s*xie|lesson)\s*[（(]?\s*(\d+|[一二三四五六七八九十]+)\s*[）)]?/i.test(ocrText);
     if (!hasExplicitHeader) {
       return []; // No lesson headers found, return empty
     }

@@ -33,7 +33,7 @@ export default function QuestionsScreen() {
 
       // Check if this was auto-created (no real lesson headers)
       if (lessonGroups.length === 1 && lessonGroups[0].lessonName === 'Lesson 1') {
-        const hasExplicitHeader = /(?:听写|ting\s*xie|lesson)\s*(\d+|[一二三四五六七八九十]+)/i.test(ocrText);
+        const hasExplicitHeader = /(?:听写|ting\s*xie|lesson)\s*[（(]?\s*(\d+|[一二三四五六七八九十]+)\s*[）)]?/i.test(ocrText);
         if (!hasExplicitHeader) {
           setError('No lesson headers detected. Please include lesson labels like "听写 1" or "Lesson 1" in your image.');
           setLoading(false);
