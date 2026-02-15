@@ -2,8 +2,8 @@ import { Platform } from 'react-native';
 
 /**
  * Cross-platform speech utility.
- * Uses Web Speech API directly on web for reliable Chinese TTS.
- * Uses expo-speech on native platforms.
+ * Primary: Google Cloud TTS via /api/tts (accurate Chinese tones).
+ * Fallback: Web Speech API on web, expo-speech on native.
  */
 
 let webSpeechUnlocked = false;
@@ -69,17 +69,47 @@ interface SpeakOptions {
   onError?: () => void;
 }
 
+/** Try Google Cloud TTS first. Returns true if audio played successfully. */
+async function speakCloudTTS(text: string, onDone?: () => void, onError?: () => void): Promise<boolean> {
+  try {
+    const response = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+
+    if (!response.ok) return false;
+
+    const { audio } = await response.json();
+    if (!audio) return false;
+
+    const audioSrc = `data:audio/mp3;base64,${audio}`;
+    const audioEl = new Audio(audioSrc);
+    audioEl.onended = () => onDone?.();
+    audioEl.onerror = () => onError?.();
+    await audioEl.play();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function speak(text: string, options: SpeakOptions = {}) {
   const {
     language = 'zh-CN',
     rate = 0.8,
-    pitch = 1.1,
+    pitch = 1.0,
     onDone,
     onError,
   } = options;
 
   if (Platform.OS === 'web') {
-    speakWeb(text, { language, rate, pitch, onDone, onError });
+    // Try Cloud TTS first for accurate tones, fall back to Web Speech API
+    speakCloudTTS(text, onDone, onError).then((success) => {
+      if (!success) {
+        speakWeb(text, { language, rate, pitch, onDone, onError });
+      }
+    });
   } else {
     speakNative(text, { language, rate, pitch, onDone, onError });
   }
@@ -132,5 +162,5 @@ export function speakChinese(text: string, rate = 0.8, onDone?: () => void) {
 
 /** Convenience for Chinese praise with higher pitch */
 export function speakPraise(text: string, onDone?: () => void) {
-  speak(text, { language: 'zh-CN', rate: 0.9, pitch: 1.1, onDone });
+  speak(text, { language: 'zh-CN', rate: 0.9, pitch: 1.0, onDone });
 }
