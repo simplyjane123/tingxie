@@ -5,7 +5,7 @@ import { colors } from '../../constants/theme';
 
 interface Props {
   text: string;
-  size?: 'small' | 'large';
+  size?: 'small' | 'large' | 'tiny';
   autoPlay?: boolean;
   autoPlayDelay?: number; // Delay in ms before auto-playing
   onPress?: () => void; // Called when user taps to play audio
@@ -36,7 +36,7 @@ export default function SpeakButton({ text, size = 'large', autoPlay = false, au
     });
   };
 
-  const iconSize = size === 'large' ? 48 : 36;
+  const iconSize = size === 'large' ? 48 : size === 'small' ? 36 : 24;
 
   return (
     <Pressable

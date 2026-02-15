@@ -6,7 +6,7 @@ import MiziGrid from './MiziGrid';
 import { colors, spacing } from '../../constants/theme';
 import { WRITING_GRID_SIZE } from '../../constants/layout';
 
-const ANIMALS = ['🦫', '🐼', '🐰', '🦩'];  // capybara, panda, rabbit, flamingo
+const ANIMALS = ['🦫', '🐼', '🐰', '🦩', '🐱', '🐶', '🦊', '🐻', '🐨', '🦁', '🐯', '🐸', '🐧', '🦄', '🐷', '🐮'];
 
 interface StrokeData {
   strokes: string[];
@@ -286,7 +286,7 @@ export default function StrokeTracer({ characterData, character, wordLabel, spea
       {showCelebration && (
         <View style={styles.celebrationOverlay}>
           <View style={styles.animalRow}>
-            {ANIMALS.map((animal, i) => (
+            {[...ANIMALS].sort(() => Math.random() - 0.5).slice(0, 6).map((animal, i) => (
               <Text key={i} style={styles.animal}>{animal}</Text>
             ))}
           </View>

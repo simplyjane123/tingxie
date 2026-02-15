@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet, ScrollView, Alert } from 'react-nati
 import { useLocalSearchParams, router } from 'expo-router';
 import ScreenWrapper from '../../../components/common/ScreenWrapper';
 import ToneCurve from '../../../components/pinyin/ToneCurve';
+import SpeakButton from '../../../components/audio/SpeakButton';
 import { getLessonById } from '../../../data/lessons';
 import { useAppStore } from '../../../store/useAppStore';
 import { encodeLessonToUrl } from '../../../utils/shareLesson';
@@ -123,7 +124,7 @@ export default function WordMapScreen() {
                 </>
               )}
 
-              {/* Progress indicator */}
+              {/* Progress indicator and speaker */}
               <View style={styles.indicators}>
                 {item.type === 'hanzi' ? (
                   <View style={[styles.dot, writingDone && { backgroundColor: colors.correct }]}>
@@ -134,6 +135,7 @@ export default function WordMapScreen() {
                     <Text style={styles.dotText}>拼</Text>
                   </View>
                 )}
+                <SpeakButton text={item.characters || item.pinyin} size="tiny" />
               </View>
             </Pressable>
           );
