@@ -3,7 +3,7 @@ import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator } from
 import { router, useLocalSearchParams } from 'expo-router';
 import ScreenWrapper from '../../components/common/ScreenWrapper';
 import { colors, spacing, radius, typography } from '../../constants/theme';
-import { parsePinyinString } from '../../utils/pinyin';
+import { parseOcrSimple, formatItems } from '../../utils/simpleParser';
 
 export default function QuestionsScreen() {
   const { ocrText, lessonId } = useLocalSearchParams<{ ocrText: string; lessonId: string }>();
@@ -12,7 +12,7 @@ export default function QuestionsScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (wantPinyin === null || wantEnglish === null) {
       setError('Please answer all questions');
       return;
@@ -22,47 +22,19 @@ export default function QuestionsScreen() {
     setError(null);
 
     try {
-      const response = await fetch('/api/claude', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ocrText,
-          wantPinyin,
-          wantEnglish,
-        }),
-      });
+      // Parse OCR text to extract Chinese characters, pinyin, and English
+      const parsedItems = parseOcrSimple(ocrText);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || `API error: ${response.status}`);
-      }
-
-      const { items: rawItems } = await response.json();
-
-      // Transform Claude's output to SpellingItem format
-      const items = rawItems.map((item: any, index: number) => {
-        const pinyin = wantPinyin ? (item.pinyin || '') : '';
-        const syllables = wantPinyin ? parsePinyinString(pinyin) : [];
-        const type = syllables.length === 1 ? 'hanzi' : 'pinyin';
-
-        return {
-          id: `${lessonId}-${index}`,
-          lessonId,
-          type,
-          pinyin,
-          syllables,
-          characters: item.characters || '',
-          english: wantEnglish ? (item.english || '') : '',
-        };
-      });
-
-      if (items.length === 0) {
-        setError('No words detected. Try using a clearer image.');
+      if (parsedItems.length === 0) {
+        setError('No Chinese words detected. Try using a clearer image.');
         setLoading(false);
         return;
       }
 
-      // Navigate to review screen with AI-parsed data
+      // Format items based on user preferences
+      const items = formatItems(parsedItems, wantPinyin, wantEnglish, lessonId);
+
+      // Navigate to review screen
       router.push({
         pathname: '/upload/review',
         params: {
@@ -72,8 +44,8 @@ export default function QuestionsScreen() {
         },
       });
     } catch (e: any) {
-      console.error('AI processing error:', e);
-      setError(e.message || 'AI processing failed. Please try again.');
+      console.error('Parsing error:', e);
+      setError(e.message || 'Processing failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -85,7 +57,7 @@ export default function QuestionsScreen() {
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Text style={styles.backText}>← 返回</Text>
         </Pressable>
-        <Text style={styles.title}>AI Processing</Text>
+        <Text style={styles.title}>Lesson Setup</Text>
         <Text style={styles.subtitle}>Customize your lesson</Text>
       </View>
 
@@ -102,7 +74,7 @@ export default function QuestionsScreen() {
         <View style={styles.questionSection}>
           <Text style={styles.questionTitle}>1. Should the generated list include Hanyu Pinyin?</Text>
           <Text style={styles.questionHint}>
-            AI will extract pinyin from the image if present, or infer it with correct tone marks.
+            Pinyin will be extracted from the image if present.
           </Text>
 
           <View style={styles.optionsRow}>
@@ -130,7 +102,7 @@ export default function QuestionsScreen() {
         <View style={styles.questionSection}>
           <Text style={styles.questionTitle}>2. Should the generated list include English translations?</Text>
           <Text style={styles.questionHint}>
-            AI will extract English meanings if present in the image.
+            English meanings will be extracted if present in the image.
           </Text>
 
           <View style={styles.optionsRow}>
@@ -174,7 +146,7 @@ export default function QuestionsScreen() {
           {loading ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.submitBtnText}>Process with AI 🤖</Text>
+            <Text style={styles.submitBtnText}>Generate Lesson ✨</Text>
           )}
         </Pressable>
       </ScrollView>
