@@ -3,7 +3,7 @@ import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator } from
 import { router, useLocalSearchParams } from 'expo-router';
 import ScreenWrapper from '../../components/common/ScreenWrapper';
 import { colors, spacing, radius, typography } from '../../constants/theme';
-import { parseOcrSimple, formatItems } from '../../utils/simpleParser';
+import { parseOcrWithLessons, formatMultipleLessons } from '../../utils/simpleParser';
 
 export default function QuestionsScreen() {
   const { ocrText, lessonId } = useLocalSearchParams<{ ocrText: string; lessonId: string }>();
@@ -22,24 +22,42 @@ export default function QuestionsScreen() {
     setError(null);
 
     try {
-      // Parse OCR text to extract Chinese characters, pinyin, and English
-      const parsedItems = parseOcrSimple(ocrText);
+      // Parse OCR text to extract lessons
+      const lessonGroups = parseOcrWithLessons(ocrText);
 
-      if (parsedItems.length === 0) {
-        setError('No Chinese words detected. Try using a clearer image.');
+      if (lessonGroups.length === 0) {
+        setError('No lesson headers detected (e.g., "听写 1", "Lesson 1"). Please ensure your image contains lesson labels.');
         setLoading(false);
         return;
       }
 
-      // Format items based on user preferences
-      const items = formatItems(parsedItems, wantPinyin, wantEnglish, lessonId);
+      // Check if this was auto-created (no real lesson headers)
+      if (lessonGroups.length === 1 && lessonGroups[0].lessonName === 'Lesson 1') {
+        const hasExplicitHeader = /(?:听写|ting\s*xie|lesson)\s*(\d+|[一二三四五六七八九十]+)/i.test(ocrText);
+        if (!hasExplicitHeader) {
+          setError('No lesson headers detected. Please include lesson labels like "听写 1" or "Lesson 1" in your image.');
+          setLoading(false);
+          return;
+        }
+      }
 
-      // Navigate to review screen
+      // Format multiple lessons
+      const formattedLessons = formatMultipleLessons(lessonGroups, wantPinyin, wantEnglish, lessonId);
+
+      // For now, just take the first lesson and navigate to review
+      // TODO: Add multi-lesson support in the UI
+      if (formattedLessons.length === 0 || formattedLessons[0].items.length === 0) {
+        setError('No words detected in lessons. Try using a clearer image.');
+        setLoading(false);
+        return;
+      }
+
+      // Navigate to review screen with first lesson
       router.push({
         pathname: '/upload/review',
         params: {
-          lessonId,
-          items: JSON.stringify(items),
+          lessonId: formattedLessons[0].lessonId,
+          items: JSON.stringify(formattedLessons[0].items),
           ocrText,
         },
       });

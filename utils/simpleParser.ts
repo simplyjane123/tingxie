@@ -121,10 +121,21 @@ export function parseOcrWithLessons(ocrText: string): LessonGroup[] {
 }
 
 /**
- * Simple parser for OCR text (original, for backward compatibility)
+ * Simple parser for OCR text
+ * Returns empty array if no lesson headers are detected
  */
 export function parseOcrSimple(ocrText: string): ParsedItem[] {
   const lessonGroups = parseOcrWithLessons(ocrText);
+
+  // Only return items if we detected explicit lesson headers
+  // If "Lesson 1" was auto-created (no headers found), don't return anything
+  if (lessonGroups.length === 1 && lessonGroups[0].lessonName === 'Lesson 1') {
+    // Check if this was auto-created by looking at the OCR text
+    const hasExplicitHeader = /(?:听写|ting\s*xie|lesson)\s*(\d+|[一二三四五六七八九十]+)/i.test(ocrText);
+    if (!hasExplicitHeader) {
+      return []; // No lesson headers found, return empty
+    }
+  }
 
   // Flatten all items from all lessons
   const allItems: ParsedItem[] = [];
@@ -178,3 +189,26 @@ export function extractSingleLesson(
 
   return target ? target.items : [];
 }
+
+/**
+ * Format multiple lessons with proper lesson IDs
+ */
+export function formatMultipleLessons(
+  lessonGroups: LessonGroup[],
+  wantPinyin: boolean,
+  wantEnglish: boolean,
+  baseLessonId: string
+) {
+  return lessonGroups.map((group, lessonIndex) => {
+    const lessonId = `${baseLessonId}-${lessonIndex}`;
+    const items = formatItems(group.items, wantPinyin, wantEnglish, lessonId);
+
+    return {
+      lessonId,
+      lessonName: group.lessonName,
+      items,
+    };
+  });
+}
+
+export type { LessonGroup, ParsedItem };
