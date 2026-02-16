@@ -15,9 +15,10 @@ interface EditableItem {
 }
 
 export default function ReviewScreen() {
-  const { lessonId, items: itemsParam } = useLocalSearchParams<{
+  const { lessonId, items: itemsParam, detectedLessonName } = useLocalSearchParams<{
     lessonId: string;
     items: string;
+    detectedLessonName?: string;
   }>();
 
   const customLessons = useAppStore((s) => s.customLessons);
@@ -44,7 +45,11 @@ export default function ReviewScreen() {
   const nextLessonNumber = allLessons.length + customLessons.length + 1;
   const [schoolName, setSchoolName] = useState('');
   const [grade, setGrade] = useState('');
-  const [lessonName, setLessonName] = useState(`听写 ${nextLessonNumber}`);
+  const [lessonName, setLessonName] = useState(
+    detectedLessonName && detectedLessonName.trim()
+      ? detectedLessonName
+      : `听写 ${nextLessonNumber}`
+  );
   const [lessonDate, setLessonDate] = useState(
     `${new Date().getMonth() + 1}月${new Date().getDate()}日`
   );

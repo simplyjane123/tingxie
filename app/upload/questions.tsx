@@ -60,6 +60,7 @@ export default function QuestionsScreen() {
           lessonId: formattedLessons[0].lessonId,
           items: JSON.stringify(formattedLessons[0].items),
           ocrText: normalizedText,
+          detectedLessonName: normalized.lessonName || '',
         },
       });
     } catch (e: any) {
