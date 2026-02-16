@@ -99,8 +99,19 @@ Constraints:
       throw new Error('Unexpected response type');
     }
 
+    // Extract JSON from response (remove markdown code blocks if present)
+    let jsonText = content.text.trim();
+
+    // Remove markdown code blocks if present
+    if (jsonText.startsWith('```')) {
+      // Remove opening ```json or ```
+      jsonText = jsonText.replace(/^```(?:json)?\s*\n/, '');
+      // Remove closing ```
+      jsonText = jsonText.replace(/\n```\s*$/, '');
+    }
+
     // Parse the JSON response
-    const normalized: NormalizeResponse = JSON.parse(content.text);
+    const normalized: NormalizeResponse = JSON.parse(jsonText);
 
     return new Response(JSON.stringify(normalized), {
       status: 200,
