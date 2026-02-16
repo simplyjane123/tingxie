@@ -13,13 +13,33 @@ export default function QuestionsScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      // Parse OCR text to extract lessons
-      const lessonGroups = parseOcrWithLessons(ocrText);
+      // Step 1: Normalize the OCR text using Claude API
+      const normalizeResponse = await fetch('/api/normalize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          raw_ocr_text: ocrText,
+          remove_pinyin: !wantPinyin,
+          remove_english: !wantEnglish,
+        }),
+      });
+
+      if (!normalizeResponse.ok) {
+        throw new Error('Failed to normalize text');
+      }
+
+      const normalized = await normalizeResponse.json();
+
+      // Join normalized sentences into text for parsing
+      const normalizedText = normalized.sentences.join('\n');
+
+      // Step 2: Parse the normalized text to extract lessons
+      const lessonGroups = parseOcrWithLessons(normalizedText);
 
       // Format multiple lessons
       const formattedLessons = formatMultipleLessons(lessonGroups, wantPinyin, wantEnglish, lessonId);
@@ -37,7 +57,7 @@ export default function QuestionsScreen() {
         params: {
           lessonId: formattedLessons[0].lessonId,
           items: JSON.stringify(formattedLessons[0].items),
-          ocrText,
+          ocrText: normalizedText,
         },
       });
     } catch (e: any) {
