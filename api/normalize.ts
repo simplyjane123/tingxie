@@ -117,10 +117,23 @@ JSON Requirements:
     try {
       normalized = JSON.parse(jsonText);
     } catch (parseError: any) {
-      console.error('JSON parse error:', parseError.message);
-      console.error('Raw response:', content.text);
-      console.error('Cleaned JSON text:', jsonText);
-      throw new Error(`Failed to parse JSON: ${parseError.message}. Response: ${jsonText.substring(0, 200)}`);
+      // Try to repair common JSON issues
+      console.log('Initial parse failed, attempting to repair JSON...');
+
+      try {
+        // Fix missing commas in arrays: add comma after " if followed by newline/whitespace and "
+        let repairedJson = jsonText.replace(/("\s*)\n(\s*")/g, '$1,\n$2');
+
+        console.log('Attempting to parse repaired JSON...');
+        normalized = JSON.parse(repairedJson);
+        console.log('Successfully parsed repaired JSON!');
+      } catch (repairError: any) {
+        console.error('JSON parse error:', parseError.message);
+        console.error('Repair also failed:', repairError.message);
+        console.error('Raw response:', content.text);
+        console.error('Cleaned JSON text:', jsonText);
+        throw new Error(`Failed to parse JSON: ${parseError.message}. Response: ${jsonText.substring(0, 200)}`);
+      }
     }
 
     return new Response(JSON.stringify(normalized), {
