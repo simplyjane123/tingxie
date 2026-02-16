@@ -30,7 +30,9 @@ export default function QuestionsScreen() {
       });
 
       if (!normalizeResponse.ok) {
-        throw new Error('Failed to normalize text');
+        const errorData = await normalizeResponse.json().catch(() => ({}));
+        console.error('Normalization failed:', errorData);
+        throw new Error(errorData.error || `Normalization failed: ${normalizeResponse.status}`);
       }
 
       const normalized = await normalizeResponse.json();
@@ -62,7 +64,7 @@ export default function QuestionsScreen() {
       });
     } catch (e: any) {
       console.error('Parsing error:', e);
-      setError('Failed to process text. Please try again.');
+      setError(e.message || 'Failed to process text. Please try again.');
     } finally {
       setLoading(false);
     }
