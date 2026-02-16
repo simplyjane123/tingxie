@@ -67,21 +67,23 @@ Rules:
 6. Do not explain your steps.
 
 Output format:
-Return only valid JSON in this exact schema:
+CRITICAL: Return ONLY valid, parseable JSON. No markdown, no code blocks, no explanations.
 
+Schema:
 {
   "sentences": ["完整句子一", "完整句子二", "完整句子三"],
   "dropped": {
-    "pinyin_lines": ["..."],
-    "english_lines": ["..."],
-    "other_noise": ["..."]
+    "pinyin_lines": [],
+    "english_lines": [],
+    "other_noise": []
   }
 }
 
-Constraints:
-- The "sentences" array must contain only clean Chinese sentences.
-- One sentence per array item.
-- No extra text outside the JSON.`;
+JSON Requirements:
+- Each sentence in the array MUST be followed by a comma (except the last one)
+- Chinese quotation marks (""《》) inside sentences are fine - just ensure proper JSON comma separation
+- One sentence per array item
+- Return ONLY the JSON object, nothing else`;
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
