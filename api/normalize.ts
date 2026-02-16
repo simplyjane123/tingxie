@@ -67,23 +67,13 @@ Rules:
 6. Do not explain your steps.
 
 Output format:
-CRITICAL: Return ONLY valid, parseable JSON. No markdown, no code blocks, no explanations.
+CRITICAL: Output ONLY the normalized Chinese sentences, one per line. No JSON, no explanations, no extra text.
+Just the sentences themselves, each on its own line.
 
-Schema:
-{
-  "sentences": ["完整句子一", "完整句子二", "完整句子三"],
-  "dropped": {
-    "pinyin_lines": [],
-    "english_lines": [],
-    "other_noise": []
-  }
-}
-
-JSON Requirements:
-- Each sentence in the array MUST be followed by a comma (except the last one)
-- Chinese quotation marks (""《》) inside sentences are fine - just ensure proper JSON comma separation
-- One sentence per array item
-- Return ONLY the JSON object, nothing else`;
+Example output:
+完整句子一。
+完整句子二。
+完整句子三。`;
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
@@ -101,40 +91,24 @@ JSON Requirements:
       throw new Error('Unexpected response type');
     }
 
-    // Extract JSON from response (remove markdown code blocks if present)
-    let jsonText = content.text.trim();
+    // Parse plain text response - one sentence per line
+    const responseText = content.text.trim();
 
-    // Remove markdown code blocks if present
-    if (jsonText.startsWith('```')) {
-      // Remove opening ```json or ```
-      jsonText = jsonText.replace(/^```(?:json)?\s*\n/, '');
-      // Remove closing ```
-      jsonText = jsonText.replace(/\n```\s*$/, '');
-    }
+    // Split by newlines and filter out empty lines
+    const sentences = responseText
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
 
-    // Parse the JSON response
-    let normalized: NormalizeResponse;
-    try {
-      normalized = JSON.parse(jsonText);
-    } catch (parseError: any) {
-      // Try to repair common JSON issues
-      console.log('Initial parse failed, attempting to repair JSON...');
-
-      try {
-        // Fix missing commas in arrays: add comma after " if followed by newline/whitespace and "
-        let repairedJson = jsonText.replace(/("\s*)\n(\s*")/g, '$1,\n$2');
-
-        console.log('Attempting to parse repaired JSON...');
-        normalized = JSON.parse(repairedJson);
-        console.log('Successfully parsed repaired JSON!');
-      } catch (repairError: any) {
-        console.error('JSON parse error:', parseError.message);
-        console.error('Repair also failed:', repairError.message);
-        console.error('Raw response:', content.text);
-        console.error('Cleaned JSON text:', jsonText);
-        throw new Error(`Failed to parse JSON: ${parseError.message}. Response: ${jsonText.substring(0, 200)}`);
+    // Construct the normalized response
+    const normalized: NormalizeResponse = {
+      sentences,
+      dropped: {
+        pinyin_lines: [],
+        english_lines: [],
+        other_noise: []
       }
-    }
+    };
 
     return new Response(JSON.stringify(normalized), {
       status: 200,
