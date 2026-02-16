@@ -111,7 +111,15 @@ Constraints:
     }
 
     // Parse the JSON response
-    const normalized: NormalizeResponse = JSON.parse(jsonText);
+    let normalized: NormalizeResponse;
+    try {
+      normalized = JSON.parse(jsonText);
+    } catch (parseError: any) {
+      console.error('JSON parse error:', parseError.message);
+      console.error('Raw response:', content.text);
+      console.error('Cleaned JSON text:', jsonText);
+      throw new Error(`Failed to parse JSON: ${parseError.message}. Response: ${jsonText.substring(0, 200)}`);
+    }
 
     return new Response(JSON.stringify(normalized), {
       status: 200,
