@@ -13,55 +13,34 @@ interface LessonGroup {
 }
 
 /**
- * Detect lesson boundaries in OCR text
- * Matches: "听写 1", "听写1", "听写(3)", "听写（三）", "听写(三)《标题》", etc.
- * If no headers found, extracts all words into a default lesson
+ * Extract all Chinese words from OCR text
+ * No lesson header detection - just extracts all Chinese characters
  */
 function detectLessons(lines: string[]): LessonGroup[] {
-  const lessonGroups: LessonGroup[] = [];
-  let currentLesson: LessonGroup | null = null;
+  const lesson: LessonGroup = {
+    lessonName: 'Uploaded Lesson',
+    items: []
+  };
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
 
-    // Check if this line is a lesson header
-    const lessonMatch = line.match(/^(?:听写|ting\s*xie|lesson)/i);
-
-    if (lessonMatch) {
-      // Start a new lesson - use the entire line as the lesson name
-      currentLesson = {
-        lessonName: line,
-        items: []
-      };
-      lessonGroups.push(currentLesson);
-      continue;
-    }
-
-    // Skip common non-content lines
+    // Skip common non-content lines (numbers, dates, very short lines)
     if (/^\d+$/.test(line) || line.includes('日期') || line.length < 2) continue;
 
     // Check if line contains Chinese characters
     const hasChineseChars = /[\u4e00-\u9fa5]/.test(line);
 
     if (hasChineseChars) {
-      // Create default lesson if no header found yet
-      if (!currentLesson) {
-        currentLesson = {
-          lessonName: 'Uploaded Lesson',
-          items: []
-        };
-        lessonGroups.push(currentLesson);
-      }
-
       const item = parseLineToItem(line, lines, i);
       if (item) {
-        currentLesson.items.push(item);
+        lesson.items.push(item);
       }
     }
   }
 
-  return lessonGroups;
+  return lesson.items.length > 0 ? [lesson] : [];
 }
 
 /**

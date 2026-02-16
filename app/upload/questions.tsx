@@ -8,17 +8,12 @@ import { parseOcrWithLessons, formatMultipleLessons } from '../../utils/simplePa
 export default function QuestionsScreen() {
   const { ocrText: initialOcrText, lessonId } = useLocalSearchParams<{ ocrText: string; lessonId: string }>();
   const [ocrText, setOcrText] = useState(initialOcrText || '');
-  const [wantPinyin, setWantPinyin] = useState<boolean | null>(null);
-  const [wantEnglish, setWantEnglish] = useState<boolean | null>(null);
+  const [wantPinyin, setWantPinyin] = useState<boolean>(false);
+  const [wantEnglish, setWantEnglish] = useState<boolean>(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = () => {
-    if (wantPinyin === null || wantEnglish === null) {
-      setError('Please answer all questions');
-      return;
-    }
-
     setLoading(true);
     setError(null);
 
@@ -31,7 +26,7 @@ export default function QuestionsScreen() {
 
       // Check if any words were found
       if (formattedLessons.length === 0 || formattedLessons[0].items.length === 0) {
-        setError('No Chinese words detected. Please check your text or image.');
+        setError('No Chinese characters found in the text.');
         setLoading(false);
         return;
       }
@@ -47,7 +42,7 @@ export default function QuestionsScreen() {
       });
     } catch (e: any) {
       console.error('Parsing error:', e);
-      setError(e.message || 'Processing failed. Please try again.');
+      setError('Failed to process text. Please try again.');
     } finally {
       setLoading(false);
     }
