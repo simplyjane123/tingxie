@@ -26,25 +26,12 @@ export default function QuestionsScreen() {
       // Parse OCR text to extract lessons
       const lessonGroups = parseOcrWithLessons(ocrText);
 
-      // Debug logging
-      console.log('Detected lesson groups:', lessonGroups);
-      console.log('OCR text lines:', ocrText.split('\n').map((line, i) => `${i}: ${line}`));
-
-      if (lessonGroups.length === 0) {
-        setError('No lesson headers detected (e.g., "听写 1", "Lesson 1"). Please ensure your image contains lesson labels.');
-        setLoading(false);
-        return;
-      }
-
-      // Validation is now handled in the parser itself
-
       // Format multiple lessons
       const formattedLessons = formatMultipleLessons(lessonGroups, wantPinyin, wantEnglish, lessonId);
 
-      // For now, just take the first lesson and navigate to review
-      // TODO: Add multi-lesson support in the UI
+      // Check if any words were found
       if (formattedLessons.length === 0 || formattedLessons[0].items.length === 0) {
-        setError('No words detected in lessons. Try using a clearer image.');
+        setError('No Chinese words detected. Please check your text or image.');
         setLoading(false);
         return;
       }

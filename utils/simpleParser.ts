@@ -15,6 +15,7 @@ interface LessonGroup {
 /**
  * Detect lesson boundaries in OCR text
  * Matches: "听写 1", "听写1", "听写(3)", "听写（三）", "听写(三)《标题》", etc.
+ * If no headers found, extracts all words into a default lesson
  */
 function detectLessons(lines: string[]): LessonGroup[] {
   const lessonGroups: LessonGroup[] = [];
@@ -25,14 +26,7 @@ function detectLessons(lines: string[]): LessonGroup[] {
     if (!line) continue;
 
     // Check if this line is a lesson header
-    // Matches: 听写1, 听写 1, 听写(3), 听写（三）, 听写(三)《标题》, etc.
     const lessonMatch = line.match(/^(?:听写|ting\s*xie|lesson)/i);
-
-    // Debug logging
-    if (line.includes('听写') || line.includes('ting') || line.toLowerCase().includes('lesson')) {
-      console.log(`Checking line ${i}: "${line}"`);
-      console.log(`Starts with 听写/ting xie/lesson:`, lessonMatch);
-    }
 
     if (lessonMatch) {
       // Start a new lesson - use the entire line as the lesson name
@@ -41,7 +35,6 @@ function detectLessons(lines: string[]): LessonGroup[] {
         items: []
       };
       lessonGroups.push(currentLesson);
-      console.log(`Created new lesson: "${line}"`);
       continue;
     }
 
@@ -51,8 +44,16 @@ function detectLessons(lines: string[]): LessonGroup[] {
     // Check if line contains Chinese characters
     const hasChineseChars = /[\u4e00-\u9fa5]/.test(line);
 
-    if (hasChineseChars && currentLesson) {
-      // Only extract items after a lesson header has been detected
+    if (hasChineseChars) {
+      // Create default lesson if no header found yet
+      if (!currentLesson) {
+        currentLesson = {
+          lessonName: 'Uploaded Lesson',
+          items: []
+        };
+        lessonGroups.push(currentLesson);
+      }
+
       const item = parseLineToItem(line, lines, i);
       if (item) {
         currentLesson.items.push(item);
@@ -119,16 +120,10 @@ export function parseOcrWithLessons(ocrText: string): LessonGroup[] {
 
 /**
  * Simple parser for OCR text
- * Returns empty array if no lesson headers are detected
+ * Extracts all words, with or without lesson headers
  */
 export function parseOcrSimple(ocrText: string): ParsedItem[] {
   const lessonGroups = parseOcrWithLessons(ocrText);
-
-  // Only return items if we detected explicit lesson headers
-  // This check is no longer needed since we now require headers from the start
-  if (lessonGroups.length === 0) {
-    return []; // No lesson headers found, return empty
-  }
 
   // Flatten all items from all lessons
   const allItems: ParsedItem[] = [];
