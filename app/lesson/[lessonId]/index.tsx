@@ -55,6 +55,17 @@ export default function WordMapScreen() {
           <Text style={styles.testModeText}>听写测试模式</Text>
         </Pressable>
 
+        {/* Unguided Dictation Button - P3-6 only */}
+        {(lesson.primaryLevel ?? 0) >= 3 && (
+          <Pressable
+            onPress={() => router.push(`/lesson/${lessonId}/dictation`)}
+            style={({ pressed }) => [styles.dictationBtn, pressed && { opacity: 0.8 }]}
+          >
+            <Text style={styles.dictationIcon}>🎧</Text>
+            <Text style={styles.dictationText}>听写练习 (Unguided)</Text>
+          </Pressable>
+        )}
+
         {/* Share Button - custom lessons only */}
         {isCustom && (
           <Pressable
@@ -190,6 +201,29 @@ const styles = StyleSheet.create({
     fontSize: 24,
   },
   testModeText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  dictationBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.correct,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+  dictationIcon: {
+    fontSize: 24,
+  },
+  dictationText: {
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',

@@ -15,10 +15,11 @@ interface EditableItem {
 }
 
 export default function ReviewScreen() {
-  const { lessonId, items: itemsParam, detectedLessonName } = useLocalSearchParams<{
+  const { lessonId, items: itemsParam, detectedLessonName, primaryLevel: primaryLevelParam } = useLocalSearchParams<{
     lessonId: string;
     items: string;
     detectedLessonName?: string;
+    primaryLevel?: string;
   }>();
 
   const customLessons = useAppStore((s) => s.customLessons);
@@ -49,6 +50,9 @@ export default function ReviewScreen() {
     detectedLessonName && detectedLessonName.trim()
       ? detectedLessonName
       : `听写 ${nextLessonNumber}`
+  );
+  const [primaryLevel, setPrimaryLevel] = useState<number>(
+    primaryLevelParam ? parseInt(primaryLevelParam, 10) : 2
   );
   const [lessonDate, setLessonDate] = useState(
     `${new Date().getMonth() + 1}月${new Date().getDate()}日`
@@ -126,6 +130,7 @@ export default function ReviewScreen() {
       items: spellingItems,
       school: schoolName.trim() || undefined,
       grade: grade.trim() || undefined,
+      primaryLevel,
     };
 
     addCustomLesson(lesson);
@@ -184,6 +189,23 @@ export default function ReviewScreen() {
               placeholder="1月30日"
               placeholderTextColor={colors.textMuted}
             />
+          </View>
+
+          <View style={styles.inputRow}>
+            <Text style={styles.label}>Primary Level</Text>
+            <View style={styles.levelChips}>
+              {[1, 2, 3, 4, 5, 6].map((level) => (
+                <Pressable
+                  key={level}
+                  style={[styles.levelChip, primaryLevel === level && styles.levelChipSelected]}
+                  onPress={() => setPrimaryLevel(level)}
+                >
+                  <Text style={[styles.levelChipText, primaryLevel === level && styles.levelChipTextSelected]}>
+                    P{level}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
 
           {/* Preview of the final label */}
@@ -314,6 +336,33 @@ const styles = StyleSheet.create({
     padding: spacing.xs,
     fontSize: 16,
     color: colors.text,
+  },
+  levelChips: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  levelChip: {
+    width: 40,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+  },
+  levelChipSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '15',
+  },
+  levelChipText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  levelChipTextSelected: {
+    color: colors.primary,
   },
   previewBox: {
     marginTop: spacing.sm,

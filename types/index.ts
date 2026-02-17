@@ -26,6 +26,7 @@ export interface Lesson {
   items: SpellingItem[];
   school?: string;            // "Montfort Junior School"
   grade?: string;             // "Primary 4"
+  primaryLevel?: number;      // 1-6 for Primary 1 through Primary 6
 }
 
 export interface WordProgress {

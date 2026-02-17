@@ -5,6 +5,7 @@ import ScreenWrapper from '../../../../../components/common/ScreenWrapper';
 import StrokeDemo from '../../../../../components/writing/StrokeDemo';
 import StrokeTracer from '../../../../../components/writing/StrokeTracer';
 import BigButton from '../../../../../components/common/BigButton';
+import SpeakButton from '../../../../../components/audio/SpeakButton';
 import CelebrationRoll from '../../../../../components/feedback/CelebrationRoll';
 import { getLessonById } from '../../../../../data/lessons';
 import { useAppStore } from '../../../../../store/useAppStore';
@@ -120,6 +121,13 @@ export default function WritingScreen() {
         )}
 
         {mode === 'trace' && (
+          <>
+          <SpeakButton
+            text={item.characters || item.pinyin}
+            size="small"
+            autoPlay
+            autoPlayDelay={500}
+          />
           <StrokeTracer
             characterData={charData}
             character={currentChar}
@@ -127,6 +135,7 @@ export default function WritingScreen() {
             speakText={item.characters}
             onComplete={handleTraceComplete}
           />
+          </>
         )}
 
         {mode === 'done' && (

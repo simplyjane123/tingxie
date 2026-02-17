@@ -10,6 +10,7 @@ export default function QuestionsScreen() {
   const [ocrText, setOcrText] = useState(initialOcrText || '');
   const [wantPinyin, setWantPinyin] = useState<boolean>(false);
   const [wantEnglish, setWantEnglish] = useState<boolean>(false);
+  const [primaryLevel, setPrimaryLevel] = useState<number>(2);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,6 +62,7 @@ export default function QuestionsScreen() {
           items: JSON.stringify(formattedLessons[0].items),
           ocrText: normalizedText,
           detectedLessonName: normalized.lessonName || '',
+          primaryLevel: String(primaryLevel),
         },
       });
     } catch (e: any) {
@@ -152,6 +154,27 @@ export default function QuestionsScreen() {
                 ✗ No English needed
               </Text>
             </Pressable>
+          </View>
+        </View>
+
+        {/* Question 3: Primary Level */}
+        <View style={styles.questionSection}>
+          <Text style={styles.questionTitle}>3. What primary level is this lesson for?</Text>
+          <Text style={styles.questionHint}>
+            Primary 3-6 unlocks unguided dictation mode.
+          </Text>
+          <View style={styles.levelRow}>
+            {[1, 2, 3, 4, 5, 6].map((level) => (
+              <Pressable
+                key={level}
+                style={[styles.levelBtn, primaryLevel === level && styles.levelBtnSelected]}
+                onPress={() => setPrimaryLevel(level)}
+              >
+                <Text style={[styles.levelText, primaryLevel === level && styles.levelTextSelected]}>
+                  P{level}
+                </Text>
+              </Pressable>
+            ))}
           </View>
         </View>
 
@@ -280,6 +303,33 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   optionTextSelected: {
+    color: colors.primary,
+  },
+  levelRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  levelBtn: {
+    width: 52,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  levelBtnSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '15',
+  },
+  levelText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  levelTextSelected: {
     color: colors.primary,
   },
   errorBox: {
