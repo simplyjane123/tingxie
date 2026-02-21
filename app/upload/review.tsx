@@ -1,54 +1,21 @@
 import React, { useState, useMemo } from 'react';
-import {
-  View, Text, Pressable, StyleSheet, TextInput, ScrollView, Alert, ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, Pressable, StyleSheet, TextInput, ScrollView, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import ScreenWrapper from '../../components/common/ScreenWrapper';
 import { useAppStore } from '../../store/useAppStore';
 import { allLessons } from '../../data/lessons';
 import { parsePinyinString } from '../../utils/pinyin';
 import { SpellingItem, Lesson, ItemType } from '../../types';
-import { colors, spacing, radius } from '../../constants/theme';
-import { useAuth } from '../../lib/AuthContext';
-import { createSpellingList } from '../../lib/spellListsApi';
+import { colors, spacing, radius, typography } from '../../constants/theme';
 
 interface EditableItem {
   characters: string;
   pinyin: string;
-  english: string;
   type: ItemType;
 }
 
-function StepHeader({ step, total, onBack }: { step: number; total: number; onBack: () => void }) {
-  return (
-    <View style={styles.header}>
-      <Pressable onPress={onBack} style={styles.backBtn} hitSlop={8}>
-        <Text style={styles.backText}>‹ Back</Text>
-      </Pressable>
-      <View style={styles.stepIndicator}>
-        {Array.from({ length: total }).map((_, i) => (
-          <React.Fragment key={i}>
-            {i > 0 && <View style={[styles.stepLine, i < step && styles.stepLineDone]} />}
-            {i < step - 1 ? (
-              <View style={styles.stepDotDone}><Text style={styles.stepDoneTick}>✓</Text></View>
-            ) : (
-              <View style={[styles.stepDot, i === step - 1 && styles.stepDotActive]} />
-            )}
-          </React.Fragment>
-        ))}
-      </View>
-      <Text style={styles.stepLabel}>Step {step} of {total}</Text>
-    </View>
-  );
-}
-
 export default function ReviewScreen() {
-  const {
-    lessonId,
-    items: itemsParam,
-    detectedLessonName,
-    primaryLevel: primaryLevelParam,
-  } = useLocalSearchParams<{
+  const { lessonId, items: itemsParam, detectedLessonName, primaryLevel: primaryLevelParam } = useLocalSearchParams<{
     lessonId: string;
     items: string;
     detectedLessonName?: string;
@@ -57,467 +24,415 @@ export default function ReviewScreen() {
 
   const customLessons = useAppStore((s) => s.customLessons);
   const addCustomLesson = useAppStore((s) => s.addCustomLesson);
-  const { user } = useAuth();
-  const [isSaving, setIsSaving] = useState(false);
 
+  // Parse the items from params
   const initialItems: SpellingItem[] = useMemo(() => {
-    try { return JSON.parse(itemsParam || '[]'); }
-    catch { return []; }
+    try {
+      return JSON.parse(itemsParam || '[]');
+    } catch {
+      return [];
+    }
   }, [itemsParam]);
 
+  // Editable state
   const [editItems, setEditItems] = useState<EditableItem[]>(
-    initialItems.length > 0
-      ? initialItems.map((item) => ({
-          characters: item.characters || '',
-          pinyin: item.pinyin,
-          english: item.english || '',
-          type: item.type,
-        }))
-      : [{ characters: '', pinyin: '', english: '', type: 'hanzi' }],
+    initialItems.map((item) => ({
+      characters: item.characters || '',
+      pinyin: item.pinyin,
+      type: item.type,
+    }))
   );
 
   const nextLessonNumber = allLessons.length + customLessons.length + 1;
+  const [schoolName, setSchoolName] = useState('');
+  const [grade, setGrade] = useState('');
   const [lessonName, setLessonName] = useState(
-    detectedLessonName?.trim() || `听写 ${nextLessonNumber}`,
+    detectedLessonName && detectedLessonName.trim()
+      ? detectedLessonName
+      : `听写 ${nextLessonNumber}`
   );
   const [primaryLevel, setPrimaryLevel] = useState<number>(
-    primaryLevelParam ? parseInt(primaryLevelParam, 10) : 2,
+    primaryLevelParam ? parseInt(primaryLevelParam, 10) : 2
   );
-  const [lessonDate] = useState(
-    `${new Date().getMonth() + 1}月${new Date().getDate()}日`,
+  const [lessonDate, setLessonDate] = useState(
+    `${new Date().getMonth() + 1}月${new Date().getDate()}日`
   );
 
-  // Inline add-word form state
-  const [newChar, setNewChar] = useState('');
-  const [newPinyin, setNewPinyin] = useState('');
-  const [newEnglish, setNewEnglish] = useState('');
+  const updateItem = (index: number, field: keyof EditableItem, value: string) => {
+    const updated = [...editItems];
+    updated[index] = { ...updated[index], [field]: value };
+    setEditItems(updated);
+  };
 
-  const addWord = () => {
-    if (!newChar.trim() && !newPinyin.trim()) return;
-    setEditItems([
-      ...editItems,
-      {
-        characters: newChar.trim(),
-        pinyin: newPinyin.trim(),
-        english: newEnglish.trim(),
-        type: newChar.trim() ? 'hanzi' : 'pinyin',
-      },
-    ]);
-    setNewChar('');
-    setNewPinyin('');
-    setNewEnglish('');
+  const toggleType = (index: number) => {
+    const updated = [...editItems];
+    updated[index] = {
+      ...updated[index],
+      type: updated[index].type === 'pinyin' ? 'hanzi' : 'pinyin',
+    };
+    setEditItems(updated);
   };
 
   const deleteItem = (index: number) => {
     setEditItems(editItems.filter((_, i) => i !== index));
   };
 
-  const handleSave = async () => {
+  const addItem = () => {
+    setEditItems([...editItems, { characters: '', pinyin: '', type: 'pinyin' }]);
+  };
+
+  const handleSave = () => {
+    // Filter out empty items
     const validItems = editItems.filter((item) => item.pinyin.trim() || item.characters.trim());
+
     if (validItems.length === 0) {
       Alert.alert('No words', 'Please add at least one word.');
       return;
     }
-    if (!user) {
-      Alert.alert('Error', 'You must be signed in to save a lesson.');
-      return;
-    }
 
-    const tempId = lessonId || `custom-${Date.now()}`;
+    const id = lessonId || `custom-${Date.now()}`;
+
+    // Build SpellingItems
     const spellingItems: SpellingItem[] = validItems.map((item, index) => {
       const pinyinClean = item.pinyin.trim();
-      let syllables: ReturnType<typeof parsePinyinString> = [];
-      try { syllables = pinyinClean ? parsePinyinString(pinyinClean) : []; }
-      catch { syllables = []; }
+      let syllables;
+      try {
+        syllables = pinyinClean ? parsePinyinString(pinyinClean) : [];
+      } catch {
+        syllables = [];
+      }
+
       return {
-        id: `${tempId}-${index + 1}`,
-        lessonId: tempId,
-        type: item.characters.trim() ? 'hanzi' : ('pinyin' as const),
+        id: `${id}-${index + 1}`,
+        lessonId: id,
+        type: item.characters.trim() ? 'hanzi' : 'pinyin',
         pinyin: pinyinClean,
         syllables,
         characters: item.characters.trim() || undefined,
-        english: item.english.trim() || undefined,
       };
     });
 
+    // Build descriptive label with school and grade info
+    let displayLabel = lessonName;
+    const extras: string[] = [];
+    if (schoolName.trim()) extras.push(schoolName.trim());
+    if (grade.trim()) extras.push(grade.trim());
+    if (extras.length > 0) {
+      displayLabel = `${lessonName} - ${extras.join(' ')}`;
+    }
+
     const lesson: Lesson = {
-      id: tempId,
-      label: lessonName,
+      id,
+      label: displayLabel,
       lessonName: `第${nextLessonNumber}课`,
       order: nextLessonNumber,
       date: lessonDate,
       items: spellingItems,
+      school: schoolName.trim() || undefined,
+      grade: grade.trim() || undefined,
       primaryLevel,
     };
 
-    setIsSaving(true);
-    try {
-      const saved = await createSpellingList(lesson, user.id);
-      addCustomLesson(saved);
-      router.replace(`/lesson/${saved.id}`);
-    } catch {
-      Alert.alert('Error', 'Failed to save lesson. Please try again.');
-    } finally {
-      setIsSaving(false);
-    }
+    addCustomLesson(lesson);
+    router.replace(`/lesson/${id}`);
   };
 
   return (
-    <SafeAreaView style={styles.root}>
-      <StepHeader step={3} total={3} onBack={() => router.back()} />
+    <ScreenWrapper>
+      <View style={styles.header}>
+        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <Text style={styles.backText}>← 返回</Text>
+        </Pressable>
+        <Text style={styles.title}>Review Words</Text>
+      </View>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        <Text style={styles.title}>Add Words Manually</Text>
-
-        {/* Lesson name + level row */}
-        <View style={styles.metaRow}>
-          <TextInput
-            style={styles.lessonNameInput}
-            value={lessonName}
-            onChangeText={setLessonName}
-            placeholder="List name"
-            placeholderTextColor={colors.textMuted}
-          />
-          <View style={styles.levelChips}>
-            {[1, 2, 3, 4, 5, 6].map((lvl) => (
-              <Pressable
-                key={lvl}
-                style={[styles.levelChip, primaryLevel === lvl && styles.levelChipSelected]}
-                onPress={() => setPrimaryLevel(lvl)}
-              >
-                <Text style={[styles.levelChipText, primaryLevel === lvl && styles.levelChipTextSelected]}>
-                  P{lvl}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
-        {/* Add word form */}
-        <View style={styles.addWordCard}>
-          <Text style={styles.addWordTitle}>Add a Word</Text>
-
-          <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Chinese</Text>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        {/* Lesson info */}
+        <View style={styles.lessonInfo}>
+          <Text style={styles.sectionHeader}>Lesson Details</Text>
+          <View style={styles.inputRow}>
+            <Text style={styles.label}>School Name</Text>
             <TextInput
-              style={styles.fieldInput}
-              value={newChar}
-              onChangeText={setNewChar}
-              placeholder="e.g. 雨衣"
+              style={styles.input}
+              value={schoolName}
+              onChangeText={setSchoolName}
+              placeholder="e.g., Lincoln Elementary"
+              placeholderTextColor={colors.textMuted}
+            />
+          </View>
+          <View style={styles.inputRow}>
+            <Text style={styles.label}>Grade/Class</Text>
+            <TextInput
+              style={styles.input}
+              value={grade}
+              onChangeText={setGrade}
+              placeholder="e.g., Grade 2A"
+              placeholderTextColor={colors.textMuted}
+            />
+          </View>
+          <View style={styles.inputRow}>
+            <Text style={styles.label}>Lesson Name</Text>
+            <TextInput
+              style={styles.input}
+              value={lessonName}
+              onChangeText={setLessonName}
+              placeholder="听写 11"
+              placeholderTextColor={colors.textMuted}
+            />
+          </View>
+          <View style={styles.inputRow}>
+            <Text style={styles.label}>Date</Text>
+            <TextInput
+              style={styles.input}
+              value={lessonDate}
+              onChangeText={setLessonDate}
+              placeholder="1月30日"
               placeholderTextColor={colors.textMuted}
             />
           </View>
 
-          <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Pinyin</Text>
-            <TextInput
-              style={styles.fieldInput}
-              value={newPinyin}
-              onChangeText={setNewPinyin}
-              placeholder="e.g. yǔ yī"
-              placeholderTextColor={colors.textMuted}
-              autoCapitalize="none"
-            />
-          </View>
-
-          <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Definition</Text>
-            <TextInput
-              style={styles.fieldInput}
-              value={newEnglish}
-              onChangeText={setNewEnglish}
-              placeholder="e.g. raincoat"
-              placeholderTextColor={colors.textMuted}
-            />
-          </View>
-
-          <Pressable
-            style={[styles.addBtn, (!newChar.trim() && !newPinyin.trim()) && styles.addBtnDisabled]}
-            onPress={addWord}
-            disabled={!newChar.trim() && !newPinyin.trim()}
-          >
-            <Text style={styles.addBtnText}>+ Add to List</Text>
-          </Pressable>
-        </View>
-
-        {/* List Preview */}
-        {editItems.length > 0 && (
-          <View style={styles.listPreview}>
-            <Text style={styles.listPreviewTitle}>
-              List Preview  ·  {editItems.length} word{editItems.length !== 1 ? 's' : ''}
-            </Text>
-            {editItems.map((item, index) => (
-              <View key={index} style={styles.previewRow}>
-                <View style={styles.previewRowNum}>
-                  <Text style={styles.previewRowNumText}>{index + 1}</Text>
-                </View>
-                <View style={styles.previewRowContent}>
-                  <Text style={styles.previewChar}>{item.characters || '—'}</Text>
-                  <Text style={styles.previewPinyin}>{item.pinyin || '—'}</Text>
-                  {item.english ? <Text style={styles.previewEnglish}>{item.english}</Text> : null}
-                </View>
-                <Pressable onPress={() => deleteItem(index)} style={styles.deleteBtn} hitSlop={8}>
-                  <Text style={styles.deleteBtnText}>✕</Text>
+          <View style={styles.inputRow}>
+            <Text style={styles.label}>Primary Level</Text>
+            <View style={styles.levelChips}>
+              {[1, 2, 3, 4, 5, 6].map((level) => (
+                <Pressable
+                  key={level}
+                  style={[styles.levelChip, primaryLevel === level && styles.levelChipSelected]}
+                  onPress={() => setPrimaryLevel(level)}
+                >
+                  <Text style={[styles.levelChipText, primaryLevel === level && styles.levelChipTextSelected]}>
+                    P{level}
+                  </Text>
                 </Pressable>
-              </View>
-            ))}
+              ))}
+            </View>
           </View>
-        )}
+
+          {/* Preview of the final label */}
+          {(schoolName.trim() || grade.trim()) && (
+            <View style={styles.previewBox}>
+              <Text style={styles.previewLabel}>Preview:</Text>
+              <Text style={styles.previewText}>
+                {lessonName}
+                {(schoolName.trim() || grade.trim()) && ' - '}
+                {[schoolName.trim(), grade.trim()].filter(Boolean).join(' ')}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <Text style={styles.sectionTitle}>
+          Words ({editItems.length})
+        </Text>
+
+        {/* Word list */}
+        {editItems.map((item, index) => (
+          <View key={index} style={styles.itemRow}>
+            <Text style={styles.itemNumber}>{index + 1}</Text>
+            <View style={styles.itemFields}>
+              <TextInput
+                style={styles.itemInput}
+                value={item.characters}
+                onChangeText={(v) => updateItem(index, 'characters', v)}
+                placeholder="Chinese"
+                placeholderTextColor={colors.textMuted}
+              />
+              <TextInput
+                style={styles.itemInput}
+                value={item.pinyin}
+                onChangeText={(v) => updateItem(index, 'pinyin', v)}
+                placeholder="pīn yīn"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
+            <Pressable
+              style={[
+                styles.typeToggle,
+                item.type === 'hanzi' ? styles.typeHanzi : styles.typePinyin,
+              ]}
+              onPress={() => toggleType(index)}
+            >
+              <Text style={styles.typeText}>
+                {item.type === 'hanzi' ? '写' : '拼'}
+              </Text>
+            </Pressable>
+            <Pressable style={styles.deleteBtn} onPress={() => deleteItem(index)}>
+              <Text style={styles.deleteBtnText}>✕</Text>
+            </Pressable>
+          </View>
+        ))}
+
+        {/* Add word button */}
+        <Pressable style={styles.addBtn} onPress={addItem}>
+          <Text style={styles.addBtnText}>+ Add Word</Text>
+        </Pressable>
       </ScrollView>
 
-      {/* Save Button */}
-      <View style={styles.footer}>
-        <Pressable
-          style={[styles.saveBtn, (isSaving || editItems.length === 0) && styles.saveBtnDisabled]}
-          onPress={handleSave}
-          disabled={isSaving || editItems.length === 0}
-        >
-          {isSaving
-            ? <ActivityIndicator color="#FFFFFF" />
-            : <Text style={styles.saveBtnText}>Save List</Text>
-          }
-        </Pressable>
-      </View>
-    </SafeAreaView>
+      {/* Save button */}
+      <Pressable style={styles.saveBtn} onPress={handleSave}>
+        <Text style={styles.saveBtnText}>Save Lesson</Text>
+      </Pressable>
+    </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  // Step header
   header: {
-    paddingHorizontal: spacing.md,
+    alignItems: 'center',
     paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   backBtn: {
     alignSelf: 'flex-start',
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
   },
   backText: {
-    fontSize: 17,
+    fontSize: 18,
     color: colors.primary,
-    fontWeight: '600',
-  },
-  stepIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'center',
-    gap: 0,
-  },
-  stepDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.border,
-  },
-  stepDotActive: {
-    backgroundColor: colors.primary,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  stepDotDone: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: colors.correct,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepDoneTick: {
-    fontSize: 10,
-    color: '#FFFFFF',
-    fontWeight: '800',
-  },
-  stepLine: {
-    width: 32,
-    height: 2,
-    backgroundColor: colors.border,
-  },
-  stepLineDone: {
-    backgroundColor: colors.correct,
-  },
-  stepLabel: {
-    fontSize: 12,
-    color: colors.textLight,
-    textAlign: 'center',
     fontWeight: '500',
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.xxl,
-    gap: spacing.md,
   },
   title: {
     fontSize: 24,
     fontWeight: '800',
     color: colors.text,
-    textAlign: 'center',
-    paddingTop: spacing.sm,
   },
-  // Meta row (lesson name + level)
-  metaRow: {
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: spacing.md,
+    gap: spacing.md,
+    paddingBottom: spacing.xxl,
+  },
+  lessonInfo: {
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  sectionHeader: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
   },
-  lessonNameInput: {
-    backgroundColor: colors.surface,
-    borderWidth: 1.5,
+  label: {
+    fontSize: 14,
+    color: colors.textLight,
+    fontWeight: '500',
+    width: 100,
+  },
+  input: {
+    flex: 1,
+    borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    fontSize: 17,
-    fontWeight: '600',
+    borderRadius: radius.sm,
+    padding: spacing.xs,
+    fontSize: 16,
     color: colors.text,
   },
   levelChips: {
+    flex: 1,
     flexDirection: 'row',
-    gap: spacing.sm,
-    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
   },
   levelChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.full,
+    width: 40,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
     borderWidth: 2,
     borderColor: colors.border,
+    alignItems: 'center',
     backgroundColor: colors.surface,
   },
   levelChipSelected: {
     borderColor: colors.primary,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primary + '15',
   },
   levelChipText: {
     fontSize: 13,
     fontWeight: '700',
-    color: colors.textLight,
+    color: colors.text,
   },
   levelChipTextSelected: {
-    color: '#FFFFFF',
-  },
-  // Add word card
-  addWordCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    padding: spacing.md,
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  addWordTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  fieldRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  fieldLabel: {
-    fontSize: 14,
-    color: colors.textLight,
-    fontWeight: '600',
-    width: 76,
-  },
-  fieldInput: {
-    flex: 1,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    fontSize: 16,
-    color: colors.text,
-    backgroundColor: colors.background,
-  },
-  addBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    marginTop: spacing.xs,
-  },
-  addBtnDisabled: {
-    backgroundColor: colors.border,
-  },
-  addBtnText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  // List preview
-  listPreview: {
-    gap: spacing.xs,
-  },
-  listPreviewTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  previewRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  previewRowNum: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.primary + '20',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  previewRowNumText: {
-    fontSize: 12,
-    fontWeight: '700',
     color: colors.primary,
   },
-  previewRowContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    flexWrap: 'wrap',
+  previewBox: {
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+    backgroundColor: colors.primary + '10',
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.primary,
   },
-  previewChar: {
+  previewLabel: {
+    fontSize: 12,
+    color: colors.textLight,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  previewText: {
+    fontSize: 16,
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: colors.text,
   },
-  previewPinyin: {
-    fontSize: 14,
-    color: colors.primary,
-    fontWeight: '500',
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.sm,
   },
-  previewEnglish: {
-    fontSize: 13,
-    color: colors.textLight,
-    fontStyle: 'italic',
+  itemNumber: {
+    fontSize: 14,
+    color: colors.textMuted,
+    fontWeight: '600',
+    width: 20,
+    textAlign: 'center',
+  },
+  itemFields: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  itemInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    fontSize: 16,
+    color: colors.text,
+  },
+  typeToggle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  typeHanzi: {
+    backgroundColor: colors.tone4,
+  },
+  typePinyin: {
+    backgroundColor: colors.tone2,
+  },
+  typeText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
   deleteBtn: {
     width: 28,
@@ -529,37 +444,32 @@ const styles = StyleSheet.create({
   },
   deleteBtnText: {
     color: colors.textLight,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
   },
-  // Footer + Save
-  footer: {
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.lg,
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.background,
+  addBtn: {
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+  },
+  addBtnText: {
+    fontSize: 16,
+    color: colors.primary,
+    fontWeight: '600',
   },
   saveBtn: {
-    backgroundColor: colors.correct,
-    borderRadius: radius.lg,
+    margin: spacing.md,
     paddingVertical: spacing.md,
+    backgroundColor: colors.correct,
+    borderRadius: radius.md,
     alignItems: 'center',
-    shadowColor: colors.correct,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  saveBtnDisabled: {
-    backgroundColor: colors.border,
-    shadowOpacity: 0,
-    elevation: 0,
   },
   saveBtnText: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
     color: '#FFFFFF',
+    fontWeight: '700',
   },
 });

@@ -1,266 +1,292 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, Pressable, StyleSheet, Image, ActivityIndicator, Platform } from 'react-native';
 import { router } from 'expo-router';
-import { colors, spacing, radius } from '../../constants/theme';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import ScreenWrapper from '../../components/common/ScreenWrapper';
+import { recognizeImage } from '../../utils/ocr';
+import { colors, spacing, radius, typography } from '../../constants/theme';
 
-const LEVELS = [
-  { level: 1, label: 'P1', subtitle: 'Primary 1', icon: '⭐' },
-  { level: 2, label: 'P2', subtitle: 'Primary 2', icon: '⭐⭐' },
-  { level: 3, label: 'P3', subtitle: 'Primary 3', icon: '🌟' },
-  { level: 4, label: 'P4', subtitle: 'Primary 4', icon: '🌟🌟' },
-  { level: 5, label: 'P5', subtitle: 'Primary 5', icon: '🏆' },
-  { level: 6, label: 'P6', subtitle: 'Primary 6', icon: '🏆🏆' },
-];
+export default function UploadScreen() {
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [imageBase64, setImageBase64] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-export default function NewListScreen() {
-  const [selectedLevel, setSelectedLevel] = useState<number | null>(null);
-
-  const handleNext = () => {
-    if (selectedLevel == null) return;
-    router.push({
-      pathname: '/upload/method',
-      params: { primaryLevel: String(selectedLevel) },
+  const pickFromGallery = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      base64: true,
+      quality: 0.8,
     });
+
+    if (!result.canceled && result.assets[0]) {
+      setImageUri(result.assets[0].uri);
+      setImageBase64(result.assets[0].base64 || null);
+      setError(null);
+    }
+  };
+
+  const pickFromCamera = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      setError('Camera permission is required');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      base64: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setImageUri(result.assets[0].uri);
+      setImageBase64(result.assets[0].base64 || null);
+      setError(null);
+    }
+  };
+
+  const pickPdf = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        if (asset.mimeType?.startsWith('image/')) {
+          setImageUri(asset.uri);
+          // For document picker, we need to read as base64 separately
+          // On web, we can use fetch to get the blob
+          if (Platform.OS === 'web') {
+            const response = await fetch(asset.uri);
+            const blob = await response.blob();
+            const reader = new FileReader();
+            reader.onload = () => {
+              const base64 = (reader.result as string).split(',')[1];
+              setImageBase64(base64);
+            };
+            reader.readAsDataURL(blob);
+          } else {
+            const FileSystem = await import('expo-file-system');
+            const base64 = await FileSystem.default.readAsStringAsync(asset.uri, {
+              encoding: 'base64' as any,
+            });
+            setImageBase64(base64);
+          }
+          setError(null);
+        } else {
+          setError('PDF support coming soon. Please use an image for now.');
+        }
+      }
+    } catch (e) {
+      setError('Failed to pick file');
+    }
+  };
+
+  const handleScan = async () => {
+    if (!imageBase64) {
+      setError('Please select an image first');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const ocrText = await recognizeImage(imageBase64);
+      const lessonId = `custom-${Date.now()}`;
+
+      if (!ocrText || ocrText.trim().length === 0) {
+        setError('No text detected. Try a clearer image.');
+        setLoading(false);
+        return;
+      }
+
+      // Navigate to questions screen for AI processing
+      router.push({
+        pathname: '/upload/questions',
+        params: {
+          lessonId,
+          ocrText,
+        },
+      });
+    } catch (e: any) {
+      setError(e.message || 'OCR failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <SafeAreaView style={styles.root}>
-      {/* Header */}
+    <ScreenWrapper>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
-          <Text style={styles.backText}>‹ Back</Text>
+        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <Text style={styles.backText}>← 返回</Text>
         </Pressable>
-        <View style={styles.stepIndicator}>
-          <View style={[styles.stepDot, styles.stepDotActive]} />
-          <View style={styles.stepLine} />
-          <View style={styles.stepDot} />
-          <View style={styles.stepLine} />
-          <View style={styles.stepDot} />
-        </View>
-        <Text style={styles.stepLabel}>Step 1 of 3</Text>
+        <Text style={styles.title}>上传听写单</Text>
+        <Text style={styles.subtitle}>Upload Spelling List</Text>
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.title}>New Spelling List</Text>
-        <Text style={styles.subtitle}>Select the Primary level for this list</Text>
-
-        {/* Level Grid */}
-        <View style={styles.levelGrid}>
-          {LEVELS.map(({ level, label, subtitle, icon }) => {
-            const isSelected = selectedLevel === level;
-            return (
-              <Pressable
-                key={level}
-                style={({ pressed }) => [
-                  styles.levelCard,
-                  isSelected && styles.levelCardSelected,
-                  pressed && !isSelected && { opacity: 0.75 },
-                ]}
-                onPress={() => setSelectedLevel(level)}
-              >
-                <Text style={styles.levelIcon}>{icon}</Text>
-                <Text style={[styles.levelLabel, isSelected && styles.levelLabelSelected]}>
-                  {label}
-                </Text>
-                <Text style={[styles.levelSub, isSelected && styles.levelSubSelected]}>
-                  {subtitle}
-                </Text>
-                {isSelected && <View style={styles.checkmark}><Text style={styles.checkmarkText}>✓</Text></View>}
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {selectedLevel != null && (
-          <View style={styles.selectedInfo}>
-            <Text style={styles.selectedInfoText}>
-              Primary {selectedLevel} selected · {selectedLevel >= 3 ? 'Unguided dictation unlocked' : 'Guided writing mode'}
-            </Text>
+        {/* Image preview */}
+        {imageUri ? (
+          <View style={styles.previewContainer}>
+            <Image source={{ uri: imageUri }} style={styles.preview} resizeMode="contain" />
+            <Pressable onPress={() => { setImageUri(null); setImageBase64(null); }} style={styles.removeBtn}>
+              <Text style={styles.removeBtnText}>✕</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.placeholder}>
+            <Text style={styles.placeholderText}>Select an image of your spelling list</Text>
           </View>
         )}
-      </View>
 
-      {/* Next Button */}
-      <View style={styles.footer}>
+        {/* Pick buttons */}
+        <View style={styles.buttonRow}>
+          <Pressable style={styles.pickBtn} onPress={pickFromGallery}>
+            <Text style={styles.pickBtnText}>Gallery</Text>
+          </Pressable>
+          <Pressable style={styles.pickBtn} onPress={pickFromCamera}>
+            <Text style={styles.pickBtnText}>Camera</Text>
+          </Pressable>
+          <Pressable style={styles.pickBtn} onPress={pickPdf}>
+            <Text style={styles.pickBtnText}>File</Text>
+          </Pressable>
+        </View>
+
+        {/* Error */}
+        {error && <Text style={styles.error}>{error}</Text>}
+
+        {/* Scan button */}
         <Pressable
-          style={[styles.nextBtn, selectedLevel == null && styles.nextBtnDisabled]}
-          onPress={handleNext}
-          disabled={selectedLevel == null}
+          style={[styles.scanBtn, (!imageBase64 || loading) && styles.scanBtnDisabled]}
+          onPress={handleScan}
+          disabled={!imageBase64 || loading}
         >
-          <Text style={styles.nextBtnText}>Next →</Text>
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.scanBtnText}>Scan</Text>
+          )}
         </Pressable>
       </View>
-    </SafeAreaView>
+    </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
   header: {
-    paddingHorizontal: spacing.md,
+    alignItems: 'center',
     paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   backBtn: {
     alignSelf: 'flex-start',
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
   },
   backText: {
-    fontSize: 17,
+    fontSize: 18,
     color: colors.primary,
-    fontWeight: '600',
-  },
-  stepIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'center',
-    gap: 0,
-  },
-  stepDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.border,
-  },
-  stepDotActive: {
-    backgroundColor: colors.primary,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  stepLine: {
-    width: 32,
-    height: 2,
-    backgroundColor: colors.border,
-  },
-  stepLabel: {
-    fontSize: 12,
-    color: colors.textLight,
-    textAlign: 'center',
     fontWeight: '500',
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  subtitle: {
+    fontSize: typography.body.fontSize,
+    color: colors.textLight,
   },
   content: {
     flex: 1,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.lg,
+    padding: spacing.md,
     gap: spacing.lg,
   },
-  title: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: colors.text,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 15,
-    color: colors.textLight,
-    textAlign: 'center',
-    marginTop: -spacing.sm,
-  },
-  levelGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-    justifyContent: 'center',
-  },
-  levelCard: {
-    width: '44%',
+  previewContainer: {
+    flex: 1,
+    maxHeight: 300,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
     backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.md,
-    alignItems: 'center',
-    gap: spacing.xs,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-    position: 'relative',
   },
-  levelCardSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary + '0D',
+  preview: {
+    width: '100%',
+    height: '100%',
   },
-  levelIcon: {
-    fontSize: 24,
-    marginBottom: 4,
-  },
-  levelLabel: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  levelLabelSelected: {
-    color: colors.primary,
-  },
-  levelSub: {
-    fontSize: 13,
-    color: colors.textLight,
-    fontWeight: '500',
-  },
-  levelSubSelected: {
-    color: colors.primary,
-  },
-  checkmark: {
+  removeBtn: {
     position: 'absolute',
     top: spacing.sm,
     right: spacing.sm,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: colors.primary,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.5)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkmarkText: {
-    fontSize: 12,
+  removeBtnText: {
     color: '#FFFFFF',
-    fontWeight: '800',
+    fontSize: 16,
+    fontWeight: '700',
   },
-  selectedInfo: {
-    backgroundColor: colors.primary + '15',
-    borderRadius: radius.md,
+  placeholder: {
+    flex: 1,
+    maxHeight: 300,
+    borderRadius: radius.lg,
+    borderWidth: 2,
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+  },
+  placeholderText: {
+    fontSize: 16,
+    color: colors.textMuted,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'center',
+  },
+  pickBtn: {
+    flex: 1,
     paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
     alignItems: 'center',
   },
-  selectedInfoText: {
-    fontSize: 13,
+  pickBtnText: {
+    fontSize: 16,
     color: colors.primary,
     fontWeight: '600',
+  },
+  error: {
+    color: colors.incorrect,
+    fontSize: 14,
     textAlign: 'center',
   },
-  footer: {
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.lg,
-    paddingTop: spacing.sm,
-  },
-  nextBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.lg,
+  scanBtn: {
     paddingVertical: spacing.md,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
     alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 3,
   },
-  nextBtnDisabled: {
-    backgroundColor: colors.border,
-    shadowOpacity: 0,
-    elevation: 0,
+  scanBtnDisabled: {
+    opacity: 0.5,
   },
-  nextBtnText: {
-    fontSize: 18,
-    fontWeight: '700',
+  scanBtnText: {
+    fontSize: 20,
     color: '#FFFFFF',
+    fontWeight: '700',
   },
 });
