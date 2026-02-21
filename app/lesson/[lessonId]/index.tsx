@@ -55,6 +55,17 @@ export default function WordMapScreen() {
           <Text style={styles.testModeText}>听写测试模式</Text>
         </Pressable>
 
+        {/* Guided Dictation Button - P3-6 only */}
+        {(lesson.primaryLevel ?? 0) >= 3 && (
+          <Pressable
+            onPress={() => router.push(`/lesson/${lessonId}/guided-dictation`)}
+            style={({ pressed }) => [styles.dictationBtn, styles.guidedBtn, pressed && { opacity: 0.8 }]}
+          >
+            <Text style={styles.dictationIcon}>✍️</Text>
+            <Text style={styles.dictationText}>听写练习 (Guided)</Text>
+          </Pressable>
+        )}
+
         {/* Unguided Dictation Button - P3-6 only */}
         {(lesson.primaryLevel ?? 0) >= 3 && (
           <Pressable
@@ -219,6 +230,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
+  },
+  guidedBtn: {
+    backgroundColor: colors.primary,
   },
   dictationIcon: {
     fontSize: 24,

@@ -54,5 +54,6 @@ export interface AppState {
   getItemProgress: (itemId: string) => WordProgress;
   addCustomLesson: (lesson: Lesson) => void;
   deleteCustomLesson: (lessonId: string) => void;
+  setCustomLessons: (lessons: Lesson[]) => void;
   setOcrApiKey: (key: string) => void;
 }

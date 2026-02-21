@@ -16,6 +16,9 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'No text provided' });
     }
 
+    // Longer sentences get a faster rate for more natural flow
+    const speakingRate = text.length > 3 ? 0.90 : 0.70;
+
     const body = {
       input: { text },
       voice: {
@@ -24,7 +27,7 @@ export default async function handler(req: any, res: any) {
       },
       audioConfig: {
         audioEncoding: 'MP3',
-        speakingRate: 0.70,
+        speakingRate,
       },
     };
 

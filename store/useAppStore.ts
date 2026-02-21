@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AppState, WordProgress, Lesson } from '../types';
+import { AppState, WordProgress } from '../types';
 
 const defaultProgress: WordProgress = {
   writingComplete: false,
@@ -89,15 +89,17 @@ export const useAppStore = create<AppState>()(
           customLessons: state.customLessons.filter((l) => l.id !== lessonId),
         })),
 
+      setCustomLessons: (lessons) => set({ customLessons: lessons }),
+
       setOcrApiKey: (key) => set({ ocrApiKey: key }),
     }),
     {
       name: 'xiao-ting-xie-storage',
       storage: createJSONStorage(() => AsyncStorage),
+      // customLessons are now persisted in Supabase — exclude from local storage
       partialize: (state) => ({
         progress: state.progress,
         currentLessonId: state.currentLessonId,
-        customLessons: state.customLessons,
         ocrApiKey: state.ocrApiKey,
       }),
     },

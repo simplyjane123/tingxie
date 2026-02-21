@@ -24,23 +24,41 @@ if (Platform.OS === 'web' && typeof window !== 'undefined') {
   window.addEventListener('touchstart', unlock);
 }
 
+// Cache voices — they load asynchronously on many browsers/iOS
+let cachedVoices: SpeechSynthesisVoice[] = [];
+
+function refreshVoices() {
+  if (typeof window !== 'undefined' && window.speechSynthesis) {
+    cachedVoices = window.speechSynthesis.getVoices();
+  }
+}
+
+if (Platform.OS === 'web' && typeof window !== 'undefined' && window.speechSynthesis) {
+  refreshVoices();
+  window.speechSynthesis.onvoiceschanged = refreshVoices;
+}
+
 // Find the best Chinese female voice available on the browser
 function getChineseVoice(): SpeechSynthesisVoice | null {
   if (typeof window === 'undefined' || !window.speechSynthesis) return null;
-  const voices = window.speechSynthesis.getVoices();
+  refreshVoices(); // always refresh in case voices loaded late
 
-  // Filter for Chinese voices
-  const chineseVoices = voices.filter((v) => v.lang.startsWith('zh'));
+  // Filter for Chinese voices (zh-CN, zh-TW, zh-HK, cmn, etc.)
+  const chineseVoices = cachedVoices.filter((v) =>
+    v.lang.startsWith('zh') || v.lang.startsWith('cmn')
+  );
   if (chineseVoices.length === 0) return null;
 
   // Known male voice names to exclude
   const maleIndicators = ['kangkang', 'yunyang', 'yunxi', 'yunze', 'male', ' man'];
 
-  // Known female voice names to prefer
+  // Known female voice names to prefer (ordered by quality)
   const femaleIndicators = [
-    'huihui', 'ting-ting', 'yaoyao', 'lili', 'xiaoyi', 'xiaoxiao',
-    'xiaochen', 'xiaohan', 'xiaomo', 'xiaorui', 'xiaoxuan', 'xiaoyou',
-    'meijia', 'siqi', 'yunying', 'female', 'woman',
+    'ting-ting', 'meijia', 'siqi',  // iOS/macOS high quality
+    'huihui', 'yaoyao', 'lili',     // Windows/other
+    'xiaoyi', 'xiaoxiao', 'xiaochen', 'xiaohan', 'xiaomo',
+    'xiaorui', 'xiaoxuan', 'xiaoyou', 'yunying',
+    'female', 'woman',
   ];
 
   const nameLower = (v: SpeechSynthesisVoice) => v.name.toLowerCase();
@@ -95,19 +113,32 @@ async function speakCloudTTS(text: string, onDone?: () => void, onError?: () => 
 }
 
 export function speak(text: string, options: SpeakOptions = {}) {
+  // Longer sentences get a faster rate so they sound more natural
+  const defaultRate = text.length > 3 ? 0.85 : 0.65;
   const {
     language = 'zh-CN',
-    rate = 0.65,
+    rate = defaultRate,
     pitch = 1.0,
     onDone,
     onError,
   } = options;
 
   if (Platform.OS === 'web') {
-    // Try Cloud TTS first for accurate tones, fall back to Web Speech API
+    let cloudSucceeded = false;
+
+    // Start Web Speech API immediately (synchronous — preserves iOS user gesture context)
+    speakWeb(text, {
+      language, rate, pitch,
+      onDone: () => { if (!cloudSucceeded) onDone?.(); },
+      onError: () => { if (!cloudSucceeded) onError?.(); },
+    });
+
+    // In the background, try Cloud TTS for better quality.
+    // If it succeeds, cancel Web Speech and play Cloud audio instead.
     speakCloudTTS(text, onDone, onError).then((success) => {
-      if (!success) {
-        speakWeb(text, { language, rate, pitch, onDone, onError });
+      if (success && typeof window !== 'undefined' && window.speechSynthesis) {
+        cloudSucceeded = true;
+        window.speechSynthesis.cancel();
       }
     });
   } else {
@@ -132,6 +163,10 @@ function speakWeb(text: string, options: SpeakOptions) {
   const voice = getChineseVoice();
   if (voice) {
     utterance.voice = voice;
+    utterance.lang = voice.lang; // match lang to the selected voice exactly
+  } else {
+    // No Chinese voice available — lower volume so Cloud TTS can take over
+    utterance.volume = 0.15;
   }
 
   utterance.onend = () => options.onDone?.();

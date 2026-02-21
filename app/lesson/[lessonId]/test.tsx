@@ -52,22 +52,16 @@ export default function TestModeScreen() {
               </View>
 
               <View style={styles.wordContent}>
-                {/* Show what the tester should SAY/SHOW */}
-                {isPinyinTest ? (
-                  <>
-                    {item.characters && (
-                      <Text style={styles.character}>{item.characters}</Text>
-                    )}
-                    <Text style={styles.taskLabel}>让孩子写拼音</Text>
-                  </>
-                ) : (
-                  <>
-                    <Text style={[styles.pinyin, { color: toneColor(item.syllables[0]?.tone ?? 0) }]}>
-                      {item.pinyin}
-                    </Text>
-                    <Text style={styles.taskLabel}>让孩子写汉字</Text>
-                  </>
+                {/* Show characters and pinyin for all items */}
+                {item.characters && (
+                  <Text style={styles.character}>{item.characters}</Text>
                 )}
+                <Text style={[styles.pinyin, { color: toneColor(item.syllables[0]?.tone ?? 0) }]}>
+                  {item.pinyin}
+                </Text>
+                <Text style={styles.taskLabel}>
+                  {isPinyinTest ? '让孩子写拼音' : '让孩子写汉字'}
+                </Text>
                 {item.english && (
                   <Text style={styles.english}>{item.english}</Text>
                 )}

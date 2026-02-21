@@ -19,6 +19,10 @@ interface Props {
   wordLabel?: string;
   speakText?: string;
   onComplete?: () => void;
+  /** Skip internal celebration and speech; call onComplete quickly (for dictation mode) */
+  suppressCelebration?: boolean;
+  /** Hide ghost character, stroke highlight, and start point (for unguided dictation) */
+  hideGuide?: boolean;
 }
 
 interface DrawnStroke {
@@ -26,7 +30,7 @@ interface DrawnStroke {
   correct: boolean;
 }
 
-export default function StrokeTracer({ characterData, character, wordLabel, speakText, onComplete }: Props) {
+export default function StrokeTracer({ characterData, character, wordLabel, speakText, onComplete, suppressCelebration, hideGuide }: Props) {
   const [currentStrokeIdx, setCurrentStrokeIdx] = useState(0);
   const [drawnStrokes, setDrawnStrokes] = useState<DrawnStroke[]>([]);
   const [currentPath, setCurrentPath] = useState('');
@@ -35,10 +39,19 @@ export default function StrokeTracer({ characterData, character, wordLabel, spea
   const pointsRef = useRef<{ x: number; y: number }[]>([]);
   const strokeIdxRef = useRef(0);
   const charDataRef = useRef(characterData);
+  const onCompleteRef = useRef(onComplete);
+  const suppressRef = useRef(suppressCelebration);
+  const hideGuideRef = useRef(hideGuide);
 
   const totalStrokes = characterData?.strokes.length ?? 0;
+  const totalStrokesRef = useRef(totalStrokes);
   const isComplete = currentStrokeIdx >= totalStrokes;
 
+  // Keep refs in sync
+  onCompleteRef.current = onComplete;
+  suppressRef.current = suppressCelebration;
+  totalStrokesRef.current = totalStrokes;
+  hideGuideRef.current = hideGuide;
 
   // Reset function for repeat button
   const handleRepeat = () => {
@@ -71,17 +84,22 @@ export default function StrokeTracer({ characterData, character, wordLabel, spea
       const nextIdx = strokeIdxRef.current + 1;
       setCurrentStrokeIdx(nextIdx);
       setFeedback(null);
-      if (nextIdx >= totalStrokes) {
-        // Play speech first, then show celebration
-        if (speakText) {
-          speakChinese(speakText);
-        }
-        setTimeout(() => {
-          setShowCelebration(true);
+      if (nextIdx >= totalStrokesRef.current) {
+        if (suppressRef.current) {
+          // Quick completion for dictation mode - no speech, no celebration
+          setTimeout(() => onCompleteRef.current?.(), 400);
+        } else {
+          // Play speech first, then show celebration
+          if (speakText) {
+            speakChinese(speakText);
+          }
           setTimeout(() => {
-            onComplete?.();
-          }, 2000);
-        }, 800); // Delay celebration to let speech start
+            setShowCelebration(true);
+            setTimeout(() => {
+              onCompleteRef.current?.();
+            }, 2000);
+          }, 800); // Delay celebration to let speech start
+        }
       }
     }, 300);
   };
@@ -101,6 +119,12 @@ export default function StrokeTracer({ characterData, character, wordLabel, spea
       return;
     }
 
+    // Unguided mode — accept any stroke without path validation
+    if (hideGuideRef.current) {
+      handleCorrect();
+      return;
+    }
+
     const drawnPoints = pointsRef.current;
     const expectedMedian = data.medians[strokeIdxRef.current];
 
@@ -112,44 +136,86 @@ export default function StrokeTracer({ characterData, character, wordLabel, spea
 
     const scale = WRITING_GRID_SIZE / 1024;
 
-    // Check start position: drawn stroke must start near expected start point
+    // Expected start and end in screen coordinates
     const expectedStartX = expectedMedian[0][0] * scale;
     const expectedStartY = (900 - expectedMedian[0][1]) * scale;
-    const startDist = Math.sqrt(
-      (drawnPoints[0].x - expectedStartX) ** 2 +
-      (drawnPoints[0].y - expectedStartY) ** 2
-    );
+    const lastPt = expectedMedian[expectedMedian.length - 1];
+    const expectedEndX = lastPt[0] * scale;
+    const expectedEndY = (900 - lastPt[1]) * scale;
 
-    // Reject if start position is too far (>30% of grid size)
-    const positionThreshold = WRITING_GRID_SIZE * 0.30;
-    if (startDist > positionThreshold) {
+    // Expected stroke vector
+    const expDx = expectedEndX - expectedStartX;
+    const expDy = expectedEndY - expectedStartY;
+    const expectedLen = Math.sqrt(expDx * expDx + expDy * expDy);
+
+    // Drawn stroke
+    const drawnStart = drawnPoints[0];
+    const drawnEnd = drawnPoints[drawnPoints.length - 1];
+    const drawnDx = drawnEnd.x - drawnStart.x;
+    const drawnDy = drawnEnd.y - drawnStart.y;
+    const drawnLen = Math.sqrt(drawnDx * drawnDx + drawnDy * drawnDy);
+
+    // For dots / very short strokes, just require starting in the right area
+    if (expectedLen < 25) {
+      const startDist = Math.sqrt((drawnStart.x - expectedStartX) ** 2 + (drawnStart.y - expectedStartY) ** 2);
+      if (startDist <= WRITING_GRID_SIZE * 0.18) handleCorrect();
+      else handleIncorrect();
+      return;
+    }
+
+    // 1. Start position must be within 18% of grid size
+    const startDist = Math.sqrt((drawnStart.x - expectedStartX) ** 2 + (drawnStart.y - expectedStartY) ** 2);
+    if (startDist > WRITING_GRID_SIZE * 0.18) {
       handleIncorrect();
       return;
     }
 
-    // Calculate drawn stroke direction
-    const drawnDx = drawnPoints[drawnPoints.length - 1].x - drawnPoints[0].x;
-    const drawnDy = drawnPoints[drawnPoints.length - 1].y - drawnPoints[0].y;
-    const drawnLen = Math.sqrt(drawnDx * drawnDx + drawnDy * drawnDy);
-
-    // Calculate expected stroke direction
-    const first = expectedMedian[0];
-    const last = expectedMedian[expectedMedian.length - 1];
-    const expectedDx = (last[0] - first[0]) * scale;
-    const expectedDy = -(last[1] - first[1]) * scale; // Y is flipped
-    const expectedLen = Math.sqrt(expectedDx * expectedDx + expectedDy * expectedDy);
-
-    // For very short strokes (dots), accept if start position is close enough
-    if (expectedLen < 20 || drawnLen < 15) {
-      handleCorrect();
+    // 2. Minimum drawn length — must be at least 25% of the expected stroke length
+    if (drawnLen < expectedLen * 0.25) {
+      handleIncorrect();
       return;
     }
 
-    // Check direction using dot product (normalized)
-    const dot = (drawnDx * expectedDx + drawnDy * expectedDy) / (drawnLen * expectedLen + 0.001);
+    // 3. End position must land within 20% of grid size from expected end
+    const endDist = Math.sqrt((drawnEnd.x - expectedEndX) ** 2 + (drawnEnd.y - expectedEndY) ** 2);
+    if (endDist > WRITING_GRID_SIZE * 0.20) {
+      handleIncorrect();
+      return;
+    }
 
-    // Accept if direction is roughly correct (dot > 0.3 means < ~72 degrees off)
-    if (dot > 0.3) {
+    // 4. Sinuosity — total path length must be < 2.0× the straight-line distance
+    let totalPathLen = 0;
+    for (let i = 1; i < drawnPoints.length; i++) {
+      const dx = drawnPoints[i].x - drawnPoints[i - 1].x;
+      const dy = drawnPoints[i].y - drawnPoints[i - 1].y;
+      totalPathLen += Math.sqrt(dx * dx + dy * dy);
+    }
+    if (drawnLen > 5 && totalPathLen / drawnLen > 2.0) {
+      handleIncorrect();
+      return;
+    }
+
+    // 5. Max deviation — every drawn point must stay within 22% of grid of the nearest median point
+    const expMedianScreen = expectedMedian.map(([mx, my]: number[]) => ({
+      x: mx * scale,
+      y: (900 - my) * scale,
+    }));
+    const maxAllowedDev = WRITING_GRID_SIZE * 0.22;
+    for (const pt of drawnPoints) {
+      let minDist = Infinity;
+      for (const mp of expMedianScreen) {
+        const d = Math.sqrt((pt.x - mp.x) ** 2 + (pt.y - mp.y) ** 2);
+        if (d < minDist) minDist = d;
+      }
+      if (minDist > maxAllowedDev) {
+        handleIncorrect();
+        return;
+      }
+    }
+
+    // 6. Direction check — dot product must be > 0.707 (~45° tolerance)
+    const dot = (drawnDx * expDx + drawnDy * expDy) / (drawnLen * expectedLen + 0.001);
+    if (dot > 0.707) {
       handleCorrect();
     } else {
       handleIncorrect();
@@ -201,15 +267,17 @@ export default function StrokeTracer({ characterData, character, wordLabel, spea
 
   return (
     <View style={styles.container}>
-      <Text style={styles.progress}>
-        笔画 {Math.min(currentStrokeIdx + 1, totalStrokes)} / {totalStrokes}
-      </Text>
+      {!hideGuide && (
+        <Text style={styles.progress}>
+          笔画 {Math.min(currentStrokeIdx + 1, totalStrokes)} / {totalStrokes}
+        </Text>
+      )}
 
       <MiziGrid>
         <View {...panResponder.panHandlers} style={StyleSheet.absoluteFill}>
           <Svg width={WRITING_GRID_SIZE} height={WRITING_GRID_SIZE} viewBox="0 0 1024 1024" style={StyleSheet.absoluteFill}>
-            {/* Ghost character */}
-            {characterData.strokes.map((d, i) => (
+            {/* Ghost character (hidden in unguided mode) */}
+            {!hideGuide && characterData.strokes.map((d, i) => (
               <Path
                 key={`ghost-${i}`}
                 d={d}
@@ -219,8 +287,8 @@ export default function StrokeTracer({ characterData, character, wordLabel, spea
               />
             ))}
 
-            {/* Current stroke highlight */}
-            {!isComplete && currentStrokeIdx < characterData.strokes.length && (
+            {/* Current stroke highlight (hidden in unguided mode) */}
+            {!hideGuide && !isComplete && currentStrokeIdx < characterData.strokes.length && (
               <Path
                 d={characterData.strokes[currentStrokeIdx]}
                 fill={colors.primary}
@@ -229,8 +297,8 @@ export default function StrokeTracer({ characterData, character, wordLabel, spea
               />
             )}
 
-            {/* Start point indicator */}
-            {startPoint && !isComplete && (
+            {/* Start point indicator (hidden in unguided mode) */}
+            {!hideGuide && startPoint && !isComplete && (
               <Circle
                 cx={startPoint.x}
                 cy={startPoint.y}
@@ -273,7 +341,7 @@ export default function StrokeTracer({ characterData, character, wordLabel, spea
         <Text style={styles.wordLabel}>{wordLabel}</Text>
       )}
 
-      {isComplete && !showCelebration && (
+      {isComplete && !showCelebration && !suppressCelebration && (
         <View style={styles.completeRow}>
           <Text style={styles.doneText}>写完了!</Text>
           <Pressable onPress={handleRepeat} style={styles.repeatBtn}>
