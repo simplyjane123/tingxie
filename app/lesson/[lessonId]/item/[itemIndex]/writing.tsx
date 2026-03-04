@@ -12,7 +12,6 @@ import { useAppStore } from '../../../../../store/useAppStore';
 import { colors, spacing, typography } from '../../../../../constants/theme';
 import { loadCharacterData, CharacterData } from '../../../../../utils/characterLoader';
 import { WRITING_GRID_SIZE } from '../../../../../constants/layout';
-import { speakChinese } from '../../../../../utils/speech';
 
 type Mode = 'demo' | 'trace' | 'done';
 
@@ -29,6 +28,7 @@ export default function WritingScreen() {
   const [charData, setCharData] = useState<CharacterData | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [speakKey, setSpeakKey] = useState(0); // bump to trigger a fresh autoPlay
 
   const characters = item?.characters?.split('') ?? [];
   const currentChar = characters[charIdx] ?? '';
@@ -64,16 +64,16 @@ export default function WritingScreen() {
       setCharIdx(charIdx + 1);
       setMode('trace');
     } else {
-      // All characters done — speak the word, then celebrate
+      // All characters done — trigger SpeakButton remount to say the word, then celebrate
       useAppStore.getState().markWritingComplete(item.id);
-      speakChinese(item.characters || item.pinyin);
+      setSpeakKey(k => k + 1);
       setTimeout(() => {
         setShowCelebration(true);
         setTimeout(() => {
           setShowCelebration(false);
           setMode('done');
         }, 1500);
-      }, 1200);
+      }, 1400);
     }
   };
 
@@ -136,11 +136,13 @@ export default function WritingScreen() {
 
         {mode === 'trace' && (
           <>
+            {/* Auto-plays on mount; remounts (via speakKey) to replay after last char written */}
             <SpeakButton
+              key={speakKey}
               text={item.characters || item.pinyin}
               size="small"
               autoPlay
-              autoPlayDelay={500}
+              autoPlayDelay={speakKey === 0 ? 500 : 0}
             />
             {/* Completed chars + tracer grid in a row */}
             <View style={styles.writingRow}>
