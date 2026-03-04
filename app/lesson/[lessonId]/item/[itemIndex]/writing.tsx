@@ -59,20 +59,20 @@ export default function WritingScreen() {
   const handleTraceComplete = () => {
     const newCompleted = [...completedChars, currentChar];
     setCompletedChars(newCompleted);
-    setShowCelebration(true);
-    setTimeout(() => {
-      setShowCelebration(false);
 
-      if (charIdx + 1 < characters.length) {
-        // Move to next character
-        setCharIdx(charIdx + 1);
-        setMode('demo');
-      } else {
-        // All characters done
-        useAppStore.getState().markWritingComplete(item.id);
+    if (charIdx + 1 < characters.length) {
+      // Move to next character — no celebration between chars
+      setCharIdx(charIdx + 1);
+      setMode('demo');
+    } else {
+      // All characters done — celebrate once at the end
+      useAppStore.getState().markWritingComplete(item.id);
+      setShowCelebration(true);
+      setTimeout(() => {
+        setShowCelebration(false);
         setMode('done');
-      }
-    }, 1000);
+      }, 1500);
+    }
   };
 
   return (
@@ -152,6 +152,7 @@ export default function WritingScreen() {
                 character={currentChar}
                 speakText={item.characters}
                 onComplete={handleTraceComplete}
+                suppressCelebration
               />
             </View>
           </>
