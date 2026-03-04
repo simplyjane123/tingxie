@@ -22,7 +22,7 @@ export default function WritingScreen() {
   const idx = parseInt(itemIndex ?? '0', 10);
   const item = lesson?.items[idx];
 
-  const [mode, setMode] = useState<Mode>('demo');
+  const [mode, setMode] = useState<Mode>('trace');
   const [charIdx, setCharIdx] = useState(0);
   const [completedChars, setCompletedChars] = useState<string[]>([]);
   const [charData, setCharData] = useState<CharacterData | null>(null);
@@ -61,7 +61,7 @@ export default function WritingScreen() {
       // Move to next character — keep completed chars visible to the left
       setCompletedChars([...completedChars, currentChar]);
       setCharIdx(charIdx + 1);
-      setMode('demo');
+      setMode('trace');
     } else {
       // All characters done — celebrate once at the end
       useAppStore.getState().markWritingComplete(item.id);
@@ -85,7 +85,7 @@ export default function WritingScreen() {
           </Pressable>
         </View>
         <Text style={styles.modeLabel}>
-          {mode === 'demo' ? '看一看' : mode === 'trace' ? '写一写' : '写好了!'}
+          {mode === 'trace' ? '写一写' : '写好了!'}
         </Text>
         {characters.length > 1 && (
           <Text style={styles.charCount}>
@@ -165,7 +165,7 @@ export default function WritingScreen() {
               onPress={() => {
                 setCharIdx(0);
                 setCompletedChars([]);
-                setMode('demo');
+                setMode('trace');
               }}
               color={colors.primary}
             />
