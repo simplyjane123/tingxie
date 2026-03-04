@@ -215,7 +215,7 @@ export default function PinyinScreen() {
               })}
             </View>
             <SpeakButton
-              text={item.characters?.[currentSyllableIdx] || syllables[currentSyllableIdx]?.pinyin || ''}
+              text={syllables[currentSyllableIdx]?.pinyin || ''}
               autoPlay
               autoPlayDelay={1000}
             />
@@ -284,7 +284,7 @@ export default function PinyinScreen() {
                   })}
                 </View>
                 <SpeakButton
-                  text={item.characters?.[stage4ToneIdx] || syllables[stage4ToneIdx]?.pinyin || ''}
+                  text={syllables[stage4ToneIdx]?.pinyin || ''}
                   autoPlay
                   autoPlayDelay={1000}
                 />

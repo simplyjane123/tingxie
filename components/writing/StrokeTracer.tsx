@@ -8,6 +8,21 @@ import { WRITING_GRID_SIZE } from '../../constants/layout';
 
 const ANIMALS = ['🦫', '🐼', '🐰', '🦩', '🐱', '🐶', '🦊', '🐻', '🐨', '🦁', '🐯', '🐸', '🐧', '🦄', '🐷', '🐮'];
 
+function buildSmoothPath(pts: { x: number; y: number }[], scale: number): string {
+  if (pts.length === 0) return '';
+  if (pts.length === 1) return `M${pts[0].x * scale},${pts[0].y * scale}`;
+  if (pts.length === 2) return `M${pts[0].x * scale},${pts[0].y * scale} L${pts[1].x * scale},${pts[1].y * scale}`;
+  let d = `M${pts[0].x * scale},${pts[0].y * scale}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const midX = ((pts[i].x + pts[i + 1].x) / 2) * scale;
+    const midY = ((pts[i].y + pts[i + 1].y) / 2) * scale;
+    d += ` Q${pts[i].x * scale},${pts[i].y * scale} ${midX},${midY}`;
+  }
+  const last = pts[pts.length - 1];
+  d += ` L${last.x * scale},${last.y * scale}`;
+  return d;
+}
+
 interface StrokeData {
   strokes: string[];
   medians: number[][][];
@@ -37,6 +52,7 @@ export default function StrokeTracer({ characterData, character, wordLabel, spea
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const pointsRef = useRef<{ x: number; y: number }[]>([]);
+  const rafRef = useRef<number | null>(null);
   const strokeIdxRef = useRef(0);
   const charDataRef = useRef(characterData);
   const onCompleteRef = useRef(onComplete);
@@ -158,49 +174,49 @@ export default function StrokeTracer({ characterData, character, wordLabel, spea
     // For dots / very short strokes, just require starting in the right area
     if (expectedLen < 25) {
       const startDist = Math.sqrt((drawnStart.x - expectedStartX) ** 2 + (drawnStart.y - expectedStartY) ** 2);
-      if (startDist <= WRITING_GRID_SIZE * 0.18) handleCorrect();
+      if (startDist <= WRITING_GRID_SIZE * 0.30) handleCorrect();
       else handleIncorrect();
       return;
     }
 
-    // 1. Start position must be within 18% of grid size
+    // 1. Start position must be within 28% of grid size
     const startDist = Math.sqrt((drawnStart.x - expectedStartX) ** 2 + (drawnStart.y - expectedStartY) ** 2);
-    if (startDist > WRITING_GRID_SIZE * 0.18) {
+    if (startDist > WRITING_GRID_SIZE * 0.28) {
       handleIncorrect();
       return;
     }
 
-    // 2. Minimum drawn length — must be at least 25% of the expected stroke length
-    if (drawnLen < expectedLen * 0.25) {
+    // 2. Minimum drawn length — must be at least 15% of the expected stroke length
+    if (drawnLen < expectedLen * 0.15) {
       handleIncorrect();
       return;
     }
 
-    // 3. End position must land within 20% of grid size from expected end
+    // 3. End position must land within 30% of grid size from expected end
     const endDist = Math.sqrt((drawnEnd.x - expectedEndX) ** 2 + (drawnEnd.y - expectedEndY) ** 2);
-    if (endDist > WRITING_GRID_SIZE * 0.20) {
+    if (endDist > WRITING_GRID_SIZE * 0.30) {
       handleIncorrect();
       return;
     }
 
-    // 4. Sinuosity — total path length must be < 2.0× the straight-line distance
+    // 4. Sinuosity — total path length must be < 3.0× the straight-line distance
     let totalPathLen = 0;
     for (let i = 1; i < drawnPoints.length; i++) {
       const dx = drawnPoints[i].x - drawnPoints[i - 1].x;
       const dy = drawnPoints[i].y - drawnPoints[i - 1].y;
       totalPathLen += Math.sqrt(dx * dx + dy * dy);
     }
-    if (drawnLen > 5 && totalPathLen / drawnLen > 2.0) {
+    if (drawnLen > 5 && totalPathLen / drawnLen > 3.0) {
       handleIncorrect();
       return;
     }
 
-    // 5. Max deviation — every drawn point must stay within 22% of grid of the nearest median point
+    // 5. Max deviation — every drawn point must stay within 32% of grid of the nearest median point
     const expMedianScreen = expectedMedian.map(([mx, my]: number[]) => ({
       x: mx * scale,
       y: (900 - my) * scale,
     }));
-    const maxAllowedDev = WRITING_GRID_SIZE * 0.22;
+    const maxAllowedDev = WRITING_GRID_SIZE * 0.32;
     for (const pt of drawnPoints) {
       let minDist = Infinity;
       for (const mp of expMedianScreen) {
@@ -213,9 +229,9 @@ export default function StrokeTracer({ characterData, character, wordLabel, spea
       }
     }
 
-    // 6. Direction check — dot product must be > 0.707 (~45° tolerance)
+    // 6. Direction check — dot product must be > 0.5 (~60° tolerance)
     const dot = (drawnDx * expDx + drawnDy * expDy) / (drawnLen * expectedLen + 0.001);
-    if (dot > 0.707) {
+    if (dot > 0.5) {
       handleCorrect();
     } else {
       handleIncorrect();
@@ -229,21 +245,23 @@ export default function StrokeTracer({ characterData, character, wordLabel, spea
       onPanResponderGrant: (e: GestureResponderEvent) => {
         const { locationX, locationY } = e.nativeEvent;
         pointsRef.current = [{ x: locationX, y: locationY }];
-        // Scale to viewBox coordinates
-        const vx = locationX * screenToViewBox;
-        const vy = locationY * screenToViewBox;
-        setCurrentPath(`M${vx},${vy}`);
+        setCurrentPath(`M${locationX * screenToViewBox},${locationY * screenToViewBox}`);
         setFeedback(null);
       },
       onPanResponderMove: (e: GestureResponderEvent) => {
         const { locationX, locationY } = e.nativeEvent;
         pointsRef.current.push({ x: locationX, y: locationY });
-        // Scale to viewBox coordinates
-        const vx = locationX * screenToViewBox;
-        const vy = locationY * screenToViewBox;
-        setCurrentPath(prev => `${prev} L${vx},${vy}`);
+        if (rafRef.current !== null) return;
+        rafRef.current = requestAnimationFrame(() => {
+          setCurrentPath(buildSmoothPath(pointsRef.current, screenToViewBox));
+          rafRef.current = null;
+        });
       },
       onPanResponderRelease: () => {
+        if (rafRef.current !== null) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = null;
+        }
         validateStroke();
       },
     })
