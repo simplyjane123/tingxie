@@ -12,6 +12,7 @@ import { useAppStore } from '../../../../../store/useAppStore';
 import { colors, spacing, typography } from '../../../../../constants/theme';
 import { loadCharacterData, CharacterData } from '../../../../../utils/characterLoader';
 import { WRITING_GRID_SIZE } from '../../../../../constants/layout';
+import { speakChinese } from '../../../../../utils/speech';
 
 type Mode = 'demo' | 'trace' | 'done';
 
@@ -63,13 +64,15 @@ export default function WritingScreen() {
       setCharIdx(charIdx + 1);
       setMode('trace');
     } else {
-      // All characters done — celebrate once at the end
+      // All characters done — speak the word, then celebrate
       useAppStore.getState().markWritingComplete(item.id);
-      setShowCelebration(true);
-      setTimeout(() => {
-        setShowCelebration(false);
-        setMode('done');
-      }, 1500);
+      speakChinese(item.characters || item.pinyin, 0.65, () => {
+        setShowCelebration(true);
+        setTimeout(() => {
+          setShowCelebration(false);
+          setMode('done');
+        }, 1500);
+      });
     }
   };
 
