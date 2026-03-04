@@ -1,12 +1,37 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, TextInput } from 'react-native';
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  TextInput,
+  Platform,
+} from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import ScreenWrapper from '../../components/common/ScreenWrapper';
-import { colors, spacing, radius, typography } from '../../constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, spacing, radius } from '../../constants/theme';
 import { parseOcrWithLessons, formatMultipleLessons } from '../../utils/simpleParser';
 
+// Level metadata for the Stitch icon grid
+const LEVEL_META = [
+  { level: 1, icon: '📖', label: 'Primary 1' },
+  { level: 2, icon: '📚', label: 'Primary 2' },
+  { level: 3, icon: '✏️', label: 'Primary 3' },
+  { level: 4, icon: '🏫', label: 'Primary 4' },
+  { level: 5, icon: '🧠', label: 'Primary 5' },
+  { level: 6, icon: '🎓', label: 'Primary 6' },
+];
+
 export default function QuestionsScreen() {
-  const { ocrText: initialOcrText, lessonId } = useLocalSearchParams<{ ocrText: string; lessonId: string }>();
+  const insets = useSafeAreaInsets();
+  const { ocrText: initialOcrText, lessonId } = useLocalSearchParams<{
+    ocrText: string;
+    lessonId: string;
+  }>();
+
+  // ── State (same as before) ───────────────────────────────────────────────
   const [ocrText, setOcrText] = useState(initialOcrText || '');
   const [wantPinyin, setWantPinyin] = useState<boolean>(false);
   const [wantEnglish, setWantEnglish] = useState<boolean>(false);
@@ -14,12 +39,11 @@ export default function QuestionsScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ── Submit logic (unchanged) ─────────────────────────────────────────────
   const handleSubmit = async () => {
     setLoading(true);
     setError(null);
-
     try {
-      // Step 1: Normalize the OCR text using Claude API
       const normalizeResponse = await fetch('/api/normalize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -29,32 +53,27 @@ export default function QuestionsScreen() {
           remove_english: !wantEnglish,
         }),
       });
-
       if (!normalizeResponse.ok) {
         const errorData = await normalizeResponse.json().catch(() => ({}));
         console.error('Normalization failed:', errorData);
-        throw new Error(errorData.error || `Normalization failed: ${normalizeResponse.status}`);
+        throw new Error(
+          errorData.error || `Normalization failed: ${normalizeResponse.status}`,
+        );
       }
-
       const normalized = await normalizeResponse.json();
-
-      // Join normalized sentences into text for parsing
       const normalizedText = normalized.sentences.join('\n');
-
-      // Step 2: Parse the normalized text to extract lessons
       const lessonGroups = parseOcrWithLessons(normalizedText);
-
-      // Format multiple lessons
-      const formattedLessons = formatMultipleLessons(lessonGroups, wantPinyin, wantEnglish, lessonId);
-
-      // Check if any words were found
+      const formattedLessons = formatMultipleLessons(
+        lessonGroups,
+        wantPinyin,
+        wantEnglish,
+        lessonId,
+      );
       if (formattedLessons.length === 0 || formattedLessons[0].items.length === 0) {
         setError('No Chinese characters found in the text.');
         setLoading(false);
         return;
       }
-
-      // Navigate to review screen with first lesson
       router.push({
         pathname: '/upload/review',
         params: {
@@ -74,22 +93,86 @@ export default function QuestionsScreen() {
   };
 
   return (
-    <ScreenWrapper>
+    <View style={[styles.root, { paddingTop: Platform.OS === 'web' ? 0 : insets.top }]}>
+      {/* ── Sticky Header with Progress Bar ──────────────────────────────── */}
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>← 返回</Text>
-        </Pressable>
-        <Text style={styles.title}>Lesson Setup</Text>
-        <Text style={styles.subtitle}>Customize your lesson</Text>
+        <View style={styles.headerTop}>
+          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+            <Text style={styles.backIcon}>←</Text>
+          </Pressable>
+          <Text style={styles.headerTitle}>New Spelling List</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+        <View style={styles.progressSection}>
+          <View style={styles.progressLabelRow}>
+            <Text style={styles.progressStepText}>Step 1 of 2</Text>
+            <Text style={styles.progressPctText}>50%</Text>
+          </View>
+          <View style={styles.progressBarBg}>
+            <View style={[styles.progressBarFill, { width: '50%' }]} />
+          </View>
+        </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* OCR Preview - Editable */}
-        <View style={styles.ocrPreview}>
-          <Text style={styles.sectionTitle}>Detected Text:</Text>
-          <Text style={styles.sectionHint}>
-            You can edit or delete unwanted lines below
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingBottom:
+              (Platform.OS === 'web' ? spacing.md : insets.bottom) + 100,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Level Grid ───────────────────────────────────────────────── */}
+        <View style={styles.levelSection}>
+          <Text style={styles.levelHeading}>Which level is this list for?</Text>
+          <Text style={styles.levelSubheading}>
+            Choose a primary level to help us suggest the right words.
           </Text>
+          <View style={styles.levelGrid}>
+            {LEVEL_META.map(({ level, icon, label }) => {
+              const selected = primaryLevel === level;
+              return (
+                <Pressable
+                  key={level}
+                  style={[styles.levelCard, selected && styles.levelCardSelected]}
+                  onPress={() => setPrimaryLevel(level)}
+                >
+                  <View
+                    style={[
+                      styles.levelIconCircle,
+                      selected && styles.levelIconCircleSelected,
+                    ]}
+                  >
+                    <Text style={styles.levelIconEmoji}>{icon}</Text>
+                  </View>
+                  <Text style={[styles.levelLabel, selected && styles.levelLabelSelected]}>
+                    {label}
+                  </Text>
+                  <Text style={[styles.levelTag, selected && styles.levelTagSelected]}>
+                    P{level}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* ── Info Card ────────────────────────────────────────────────── */}
+        <View style={styles.infoCard}>
+          <Text style={styles.infoIcon}>ℹ️</Text>
+          <Text style={styles.infoText}>
+            Primary 3–6 unlocks unguided dictation mode. Selecting a level also helps
+            our AI recommend age-appropriate, curriculum-aligned words.
+          </Text>
+        </View>
+
+        {/* ── Detected Text (editable) ────────────────────────────────── */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Detected Text</Text>
+          <Text style={styles.cardHint}>You can edit or delete unwanted lines below.</Text>
           <TextInput
             style={styles.ocrInput}
             value={ocrText}
@@ -98,268 +181,340 @@ export default function QuestionsScreen() {
             numberOfLines={8}
             textAlignVertical="top"
             placeholder="OCR text will appear here..."
+            placeholderTextColor="#94A3B8"
           />
         </View>
 
-        {/* Question 1: Should generated list include pinyin? */}
-        <View style={styles.questionSection}>
-          <Text style={styles.questionTitle}>1. Should the generated list include Hanyu Pinyin?</Text>
-          <Text style={styles.questionHint}>
+        {/* ── Pinyin Toggle ────────────────────────────────────────────── */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Include Hanyu Pinyin?</Text>
+          <Text style={styles.cardHint}>
             Pinyin will be extracted from the image if present.
           </Text>
-
-          <View style={styles.optionsRow}>
+          <View style={styles.toggleRow}>
             <Pressable
-              style={[styles.optionBtn, wantPinyin === true && styles.optionBtnSelected]}
+              style={[styles.toggleBtn, wantPinyin && styles.toggleBtnSelected]}
               onPress={() => setWantPinyin(true)}
             >
-              <Text style={[styles.optionText, wantPinyin === true && styles.optionTextSelected]}>
+              <Text style={[styles.toggleBtnText, wantPinyin && styles.toggleBtnTextSelected]}>
                 ✓ Include pinyin
               </Text>
             </Pressable>
-
             <Pressable
-              style={[styles.optionBtn, wantPinyin === false && styles.optionBtnSelected]}
+              style={[styles.toggleBtn, !wantPinyin && styles.toggleBtnSelected]}
               onPress={() => setWantPinyin(false)}
             >
-              <Text style={[styles.optionText, wantPinyin === false && styles.optionTextSelected]}>
-                ✗ No pinyin needed
+              <Text
+                style={[styles.toggleBtnText, !wantPinyin && styles.toggleBtnTextSelected]}
+              >
+                ✗ No pinyin
               </Text>
             </Pressable>
           </View>
         </View>
 
-        {/* Question 2: Should generated list include English? */}
-        <View style={styles.questionSection}>
-          <Text style={styles.questionTitle}>2. Should the generated list include English translations?</Text>
-          <Text style={styles.questionHint}>
+        {/* ── English Toggle ───────────────────────────────────────────── */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Include English translations?</Text>
+          <Text style={styles.cardHint}>
             English meanings will be extracted if present in the image.
           </Text>
-
-          <View style={styles.optionsRow}>
+          <View style={styles.toggleRow}>
             <Pressable
-              style={[styles.optionBtn, wantEnglish === true && styles.optionBtnSelected]}
+              style={[styles.toggleBtn, wantEnglish && styles.toggleBtnSelected]}
               onPress={() => setWantEnglish(true)}
             >
-              <Text style={[styles.optionText, wantEnglish === true && styles.optionTextSelected]}>
+              <Text
+                style={[styles.toggleBtnText, wantEnglish && styles.toggleBtnTextSelected]}
+              >
                 ✓ Include English
               </Text>
             </Pressable>
-
             <Pressable
-              style={[styles.optionBtn, wantEnglish === false && styles.optionBtnSelected]}
+              style={[styles.toggleBtn, !wantEnglish && styles.toggleBtnSelected]}
               onPress={() => setWantEnglish(false)}
             >
-              <Text style={[styles.optionText, wantEnglish === false && styles.optionTextSelected]}>
-                ✗ No English needed
+              <Text
+                style={[styles.toggleBtnText, !wantEnglish && styles.toggleBtnTextSelected]}
+              >
+                ✗ No English
               </Text>
             </Pressable>
           </View>
         </View>
 
-        {/* Question 3: Primary Level */}
-        <View style={styles.questionSection}>
-          <Text style={styles.questionTitle}>3. What primary level is this lesson for?</Text>
-          <Text style={styles.questionHint}>
-            Primary 3-6 unlocks unguided dictation mode.
-          </Text>
-          <View style={styles.levelRow}>
-            {[1, 2, 3, 4, 5, 6].map((level) => (
-              <Pressable
-                key={level}
-                style={[styles.levelBtn, primaryLevel === level && styles.levelBtnSelected]}
-                onPress={() => setPrimaryLevel(level)}
-              >
-                <Text style={[styles.levelText, primaryLevel === level && styles.levelTextSelected]}>
-                  P{level}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-
-        {/* Error message */}
+        {/* ── Error ────────────────────────────────────────────────────── */}
         {error && (
           <View style={styles.errorBox}>
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
+      </ScrollView>
 
-        {/* Submit button */}
+      {/* ── Footer: Back + Generate ──────────────────────────────────────── */}
+      <View
+        style={[
+          styles.footer,
+          {
+            paddingBottom:
+              (Platform.OS === 'web' ? spacing.md : insets.bottom) + spacing.sm,
+          },
+        ]}
+      >
+        <Pressable style={styles.backFooterBtn} onPress={() => router.back()}>
+          <Text style={styles.backFooterText}>Back</Text>
+        </Pressable>
         <Pressable
-          style={({ pressed }) => [
-            styles.submitBtn,
-            pressed && { opacity: 0.8 },
-            loading && { opacity: 0.6 },
-          ]}
+          style={[styles.nextBtn, loading && { opacity: 0.65 }]}
           onPress={handleSubmit}
           disabled={loading}
         >
           {loading ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.submitBtnText}>Generate Lesson ✨</Text>
+            <Text style={styles.nextBtnText}>Generate Lesson ✨</Text>
           )}
         </Pressable>
-      </ScrollView>
-    </ScreenWrapper>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: '#F6F7F8',
+  },
+
+  // Header
   header: {
-    paddingTop: spacing.md,
-    paddingBottom: spacing.md,
-    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: '#E2E8F0',
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   backBtn: {
-    alignSelf: 'flex-start',
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
-  },
-  backText: {
-    fontSize: 18,
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  title: {
-    fontSize: typography.title.fontSize,
-    fontWeight: typography.title.fontWeight,
-    color: colors.text,
-  },
-  subtitle: {
-    fontSize: typography.caption.fontSize,
-    color: colors.textLight,
-    marginTop: spacing.xs,
-  },
-  content: {
-    padding: spacing.md,
-    gap: spacing.lg,
-  },
-  ocrPreview: {
-    gap: spacing.sm,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  sectionHint: {
-    fontSize: 13,
-    color: colors.textLight,
-    fontStyle: 'italic',
-  },
-  ocrInput: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    minHeight: 150,
-    maxHeight: 250,
-    borderWidth: 1,
-    borderColor: colors.border,
-    fontSize: 14,
-    color: colors.text,
-    lineHeight: 20,
-    fontFamily: 'monospace',
-  },
-  questionSection: {
-    gap: spacing.sm,
-  },
-  questionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  questionHint: {
-    fontSize: 13,
-    color: colors.textLight,
-    lineHeight: 18,
-  },
-  optionsRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginTop: spacing.xs,
-  },
-  optionBtn: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
-    borderWidth: 2,
-    borderColor: colors.border,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  optionBtnSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary + '15',
-  },
-  optionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
+  backIcon: { fontSize: 22, color: '#1E293B' },
+  headerTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E293B',
     textAlign: 'center',
   },
-  optionTextSelected: {
-    color: colors.primary,
+  headerSpacer: { width: 40 },
+  progressSection: {
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+    gap: 6,
   },
-  levelRow: {
+  progressLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  progressStepText: { fontSize: 13, fontWeight: '500', color: '#64748B' },
+  progressPctText: { fontSize: 13, fontWeight: '700', color: colors.primary },
+  progressBarBg: {
+    width: '100%',
+    height: 8,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+  },
+
+  // Scroll
+  scroll: { flex: 1 },
+  scrollContent: {
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+
+  // Level grid
+  levelSection: { gap: spacing.sm },
+  levelHeading: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1E293B',
+    textAlign: 'center',
+  },
+  levelSubheading: {
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
+  levelGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
-    marginTop: spacing.xs,
+    justifyContent: 'center',
   },
-  levelBtn: {
-    width: 52,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    borderWidth: 2,
-    borderColor: colors.border,
+  levelCard: {
+    width: '30%',
+    minWidth: 90,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: '#FFFFFF',
+    borderRadius: radius.xl,
+    borderWidth: 2,
+    borderColor: '#F1F5F9',
+    gap: spacing.xs,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  levelBtnSelected: {
+  levelCardSelected: {
     borderColor: colors.primary,
-    backgroundColor: colors.primary + '15',
+    shadowColor: colors.primary,
+    shadowOpacity: 0.12,
   },
-  levelText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text,
+  levelIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  levelTextSelected: {
-    color: colors.primary,
+  levelIconCircleSelected: {
+    backgroundColor: `${colors.primary}1A`,
   },
-  errorBox: {
-    backgroundColor: '#FFEBEE',
-    borderRadius: radius.md,
+  levelIconEmoji: { fontSize: 26 },
+  levelLabel: { fontSize: 14, fontWeight: '700', color: '#1E293B', textAlign: 'center' },
+  levelLabelSelected: { color: '#1E293B' },
+  levelTag: { fontSize: 12, color: '#94A3B8', fontWeight: '500' },
+  levelTagSelected: { color: colors.primary, fontWeight: '700' },
+
+  // Info card
+  infoCard: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    alignItems: 'flex-start',
+    backgroundColor: `${colors.primary}0D`,
+    borderWidth: 1,
+    borderColor: `${colors.primary}26`,
+    borderRadius: radius.xl,
+    padding: spacing.md,
+  },
+  infoIcon: { fontSize: 18, marginTop: 1 },
+  infoText: { flex: 1, fontSize: 13, color: '#334155', lineHeight: 20 },
+
+  // Generic card
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: radius.xl,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: '#FFCDD2',
-  },
-  errorText: {
-    fontSize: 14,
-    color: '#C62828',
-    textAlign: 'center',
-  },
-  submitBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.lg,
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.xl,
-    alignItems: 'center',
-    elevation: 2,
+    borderColor: '#F1F5F9',
+    gap: spacing.sm,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
     shadowRadius: 4,
-    marginTop: spacing.md,
+    elevation: 1,
   },
-  submitBtnText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
+  cardTitle: { fontSize: 15, fontWeight: '700', color: '#1E293B' },
+  cardHint: { fontSize: 12, color: '#64748B', lineHeight: 18 },
+
+  // OCR input
+  ocrInput: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    minHeight: 140,
+    maxHeight: 240,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    fontSize: 14,
+    color: '#1E293B',
+    lineHeight: 20,
   },
+
+  // Toggle buttons
+  toggleRow: { flexDirection: 'row', gap: spacing.sm },
+  toggleBtn: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: '#F8FAFC',
+    borderRadius: radius.lg,
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+  },
+  toggleBtnSelected: {
+    borderColor: colors.primary,
+    backgroundColor: `${colors.primary}12`,
+  },
+  toggleBtnText: { fontSize: 14, fontWeight: '600', color: '#475569', textAlign: 'center' },
+  toggleBtnTextSelected: { color: colors.primary },
+
+  // Error
+  errorBox: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  errorText: { fontSize: 13, color: '#DC2626', textAlign: 'center' },
+
+  // Footer
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+  },
+  backFooterBtn: {
+    flex: 1,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.xl,
+    backgroundColor: '#F1F5F9',
+  },
+  backFooterText: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
+  nextBtn: {
+    flex: 2,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.xl,
+    backgroundColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  nextBtnText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
 });

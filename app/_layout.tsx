@@ -2,7 +2,8 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { Platform, useEffect } from 'react';
+import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { colors } from '../constants/theme';
 import { AuthProvider, useAuth } from '../lib/AuthContext';
 

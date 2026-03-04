@@ -79,6 +79,25 @@ function findErrorCircle(
   return centroid();
 }
 
+/**
+ * Build a smooth SVG path using quadratic Bézier curves through the point list.
+ * Each curve passes through midpoints, with each actual point as a control point.
+ */
+function buildSmoothPath(pts: { x: number; y: number }[]): string {
+  if (pts.length === 0) return '';
+  if (pts.length === 1) return `M${pts[0].x},${pts[0].y}`;
+  if (pts.length === 2) return `M${pts[0].x},${pts[0].y} L${pts[1].x},${pts[1].y}`;
+  let d = `M${pts[0].x},${pts[0].y}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const midX = (pts[i].x + pts[i + 1].x) / 2;
+    const midY = (pts[i].y + pts[i + 1].y) / 2;
+    d += ` Q${pts[i].x},${pts[i].y} ${midX},${midY}`;
+  }
+  const last = pts[pts.length - 1];
+  d += ` L${last.x},${last.y}`;
+  return d;
+}
+
 /** Convert drawn SVG paths to a base64 PNG using an offscreen HTML canvas */
 function canvasToBase64(paths: string[], size: number): string {
   if (Platform.OS !== 'web') return '';
@@ -131,6 +150,7 @@ export default function DictationScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const pointsRef = useRef<{ x: number; y: number }[]>([]);
   const afterCelebrationRef = useRef<(() => void) | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   const items = lesson?.items ?? [];
   const currentItem = items[currentIndex];
@@ -204,7 +224,7 @@ export default function DictationScreen() {
     return () => clearTimeout(t);
   }, [errorPhase, charData, animStrokeIdx]);
 
-  // PanResponder for free drawing
+  // PanResponder for free drawing — smooth Bézier curves, RAF-throttled updates
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -217,17 +237,19 @@ export default function DictationScreen() {
       onPanResponderMove: (e: GestureResponderEvent) => {
         const { locationX, locationY } = e.nativeEvent;
         pointsRef.current.push({ x: locationX, y: locationY });
-        const pathStr = pointsRef.current
-          .map((p, i) => (i === 0 ? `M${p.x},${p.y}` : `L${p.x},${p.y}`))
-          .join(' ');
-        setCurrentPath(pathStr);
+        if (rafRef.current !== null) return; // already scheduled
+        rafRef.current = requestAnimationFrame(() => {
+          setCurrentPath(buildSmoothPath(pointsRef.current));
+          rafRef.current = null;
+        });
       },
       onPanResponderRelease: () => {
+        if (rafRef.current !== null) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = null;
+        }
         if (pointsRef.current.length > 1) {
-          const pathStr = pointsRef.current
-            .map((p, i) => (i === 0 ? `M${p.x},${p.y}` : `L${p.x},${p.y}`))
-            .join(' ');
-          setDrawnPaths((prev) => [...prev, pathStr]);
+          setDrawnPaths((prev) => [...prev, buildSmoothPath(pointsRef.current)]);
         }
         setCurrentPath('');
         pointsRef.current = [];

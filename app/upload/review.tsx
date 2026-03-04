@@ -1,12 +1,21 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, TextInput, ScrollView, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  TextInput,
+  ScrollView,
+  Alert,
+  Platform,
+} from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import ScreenWrapper from '../../components/common/ScreenWrapper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../../store/useAppStore';
 import { allLessons } from '../../data/lessons';
 import { parsePinyinString } from '../../utils/pinyin';
 import { SpellingItem, Lesson, ItemType } from '../../types';
-import { colors, spacing, radius, typography } from '../../constants/theme';
+import { colors, spacing, radius } from '../../constants/theme';
 
 interface EditableItem {
   characters: string;
@@ -15,17 +24,24 @@ interface EditableItem {
 }
 
 export default function ReviewScreen() {
-  const { lessonId, items: itemsParam, detectedLessonName, primaryLevel: primaryLevelParam } = useLocalSearchParams<{
+  const insets = useSafeAreaInsets();
+  const {
+    lessonId,
+    items: itemsParam,
+    detectedLessonName,
+    primaryLevel: primaryLevelParam,
+  } = useLocalSearchParams<{
     lessonId: string;
     items: string;
     detectedLessonName?: string;
     primaryLevel?: string;
   }>();
 
+  // ── Store (same as before) ───────────────────────────────────────────────
   const customLessons = useAppStore((s) => s.customLessons);
   const addCustomLesson = useAppStore((s) => s.addCustomLesson);
 
-  // Parse the items from params
+  // ── State (same as before) ───────────────────────────────────────────────
   const initialItems: SpellingItem[] = useMemo(() => {
     try {
       return JSON.parse(itemsParam || '[]');
@@ -34,13 +50,12 @@ export default function ReviewScreen() {
     }
   }, [itemsParam]);
 
-  // Editable state
   const [editItems, setEditItems] = useState<EditableItem[]>(
     initialItems.map((item) => ({
       characters: item.characters || '',
       pinyin: item.pinyin,
       type: item.type,
-    }))
+    })),
   );
 
   const nextLessonNumber = allLessons.length + customLessons.length + 1;
@@ -49,15 +64,16 @@ export default function ReviewScreen() {
   const [lessonName, setLessonName] = useState(
     detectedLessonName && detectedLessonName.trim()
       ? detectedLessonName
-      : `听写 ${nextLessonNumber}`
+      : `听写 ${nextLessonNumber}`,
   );
   const [primaryLevel, setPrimaryLevel] = useState<number>(
-    primaryLevelParam ? parseInt(primaryLevelParam, 10) : 2
+    primaryLevelParam ? parseInt(primaryLevelParam, 10) : 2,
   );
   const [lessonDate, setLessonDate] = useState(
-    `${new Date().getMonth() + 1}月${new Date().getDate()}日`
+    `${new Date().getMonth() + 1}月${new Date().getDate()}日`,
   );
 
+  // ── Item operations (same as before) ────────────────────────────────────
   const updateItem = (index: number, field: keyof EditableItem, value: string) => {
     const updated = [...editItems];
     updated[index] = { ...updated[index], [field]: value };
@@ -81,18 +97,16 @@ export default function ReviewScreen() {
     setEditItems([...editItems, { characters: '', pinyin: '', type: 'pinyin' }]);
   };
 
+  // ── Save logic (same as before) ──────────────────────────────────────────
   const handleSave = () => {
-    // Filter out empty items
-    const validItems = editItems.filter((item) => item.pinyin.trim() || item.characters.trim());
-
+    const validItems = editItems.filter(
+      (item) => item.pinyin.trim() || item.characters.trim(),
+    );
     if (validItems.length === 0) {
       Alert.alert('No words', 'Please add at least one word.');
       return;
     }
-
     const id = lessonId || `custom-${Date.now()}`;
-
-    // Build SpellingItems
     const spellingItems: SpellingItem[] = validItems.map((item, index) => {
       const pinyinClean = item.pinyin.trim();
       let syllables;
@@ -101,7 +115,6 @@ export default function ReviewScreen() {
       } catch {
         syllables = [];
       }
-
       return {
         id: `${id}-${index + 1}`,
         lessonId: id,
@@ -112,7 +125,6 @@ export default function ReviewScreen() {
       };
     });
 
-    // Build descriptive label with school and grade info
     let displayLabel = lessonName;
     const extras: string[] = [];
     if (schoolName.trim()) extras.push(schoolName.trim());
@@ -138,61 +150,70 @@ export default function ReviewScreen() {
   };
 
   return (
-    <ScreenWrapper>
+    <View style={[styles.root, { paddingTop: Platform.OS === 'web' ? 0 : insets.top }]}>
+      {/* ── Header ───────────────────────────────────────────────────────── */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>← 返回</Text>
+          <Text style={styles.backIcon}>←</Text>
         </Pressable>
-        <Text style={styles.title}>Review Words</Text>
+        <Text style={styles.headerTitle}>Add Words Manually</Text>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        {/* Lesson info */}
-        <View style={styles.lessonInfo}>
-          <Text style={styles.sectionHeader}>Lesson Details</Text>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: (Platform.OS === 'web' ? spacing.md : insets.bottom) + 100 },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Lesson Details Card ──────────────────────────────────────── */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Lesson Details</Text>
+
           <View style={styles.inputRow}>
-            <Text style={styles.label}>School Name</Text>
+            <Text style={styles.inputLabel}>School</Text>
             <TextInput
               style={styles.input}
               value={schoolName}
               onChangeText={setSchoolName}
               placeholder="e.g., Lincoln Elementary"
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor="#94A3B8"
             />
           </View>
           <View style={styles.inputRow}>
-            <Text style={styles.label}>Grade/Class</Text>
+            <Text style={styles.inputLabel}>Grade/Class</Text>
             <TextInput
               style={styles.input}
               value={grade}
               onChangeText={setGrade}
               placeholder="e.g., Grade 2A"
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor="#94A3B8"
             />
           </View>
           <View style={styles.inputRow}>
-            <Text style={styles.label}>Lesson Name</Text>
+            <Text style={styles.inputLabel}>Lesson Name</Text>
             <TextInput
               style={styles.input}
               value={lessonName}
               onChangeText={setLessonName}
               placeholder="听写 11"
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor="#94A3B8"
             />
           </View>
           <View style={styles.inputRow}>
-            <Text style={styles.label}>Date</Text>
+            <Text style={styles.inputLabel}>Date</Text>
             <TextInput
               style={styles.input}
               value={lessonDate}
               onChangeText={setLessonDate}
               placeholder="1月30日"
-              placeholderTextColor={colors.textMuted}
+              placeholderTextColor="#94A3B8"
             />
           </View>
 
-          <View style={styles.inputRow}>
-            <Text style={styles.label}>Primary Level</Text>
+          <View style={styles.levelRow}>
+            <Text style={styles.inputLabel}>Level</Text>
             <View style={styles.levelChips}>
               {[1, 2, 3, 4, 5, 6].map((level) => (
                 <Pressable
@@ -200,7 +221,12 @@ export default function ReviewScreen() {
                   style={[styles.levelChip, primaryLevel === level && styles.levelChipSelected]}
                   onPress={() => setPrimaryLevel(level)}
                 >
-                  <Text style={[styles.levelChipText, primaryLevel === level && styles.levelChipTextSelected]}>
+                  <Text
+                    style={[
+                      styles.levelChipText,
+                      primaryLevel === level && styles.levelChipTextSelected,
+                    ]}
+                  >
                     P{level}
                   </Text>
                 </Pressable>
@@ -208,134 +234,214 @@ export default function ReviewScreen() {
             </View>
           </View>
 
-          {/* Preview of the final label */}
           {(schoolName.trim() || grade.trim()) && (
             <View style={styles.previewBox}>
-              <Text style={styles.previewLabel}>Preview:</Text>
-              <Text style={styles.previewText}>
+              <Text style={styles.previewBoxLabel}>Preview</Text>
+              <Text style={styles.previewBoxText}>
                 {lessonName}
-                {(schoolName.trim() || grade.trim()) && ' - '}
+                {schoolName.trim() || grade.trim() ? ' — ' : ''}
                 {[schoolName.trim(), grade.trim()].filter(Boolean).join(' ')}
               </Text>
             </View>
           )}
         </View>
 
-        <Text style={styles.sectionTitle}>
-          Words ({editItems.length})
-        </Text>
-
-        {/* Word list */}
-        {editItems.map((item, index) => (
-          <View key={index} style={styles.itemRow}>
-            <Text style={styles.itemNumber}>{index + 1}</Text>
-            <View style={styles.itemFields}>
+        {/* ── Add Word Input Form ──────────────────────────────────────── */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Add a Word</Text>
+          <View style={styles.wordFormFields}>
+            <View>
+              <Text style={styles.fieldLabel}>Chinese Character</Text>
               <TextInput
-                style={styles.itemInput}
-                value={item.characters}
-                onChangeText={(v) => updateItem(index, 'characters', v)}
-                placeholder="Chinese"
-                placeholderTextColor={colors.textMuted}
-              />
-              <TextInput
-                style={styles.itemInput}
-                value={item.pinyin}
-                onChangeText={(v) => updateItem(index, 'pinyin', v)}
-                placeholder="pīn yīn"
-                placeholderTextColor={colors.textMuted}
+                style={styles.fieldInput}
+                placeholder="e.g., 你好"
+                placeholderTextColor="#94A3B8"
               />
             </View>
-            <Pressable
-              style={[
-                styles.typeToggle,
-                item.type === 'hanzi' ? styles.typeHanzi : styles.typePinyin,
-              ]}
-              onPress={() => toggleType(index)}
-            >
-              <Text style={styles.typeText}>
-                {item.type === 'hanzi' ? '写' : '拼'}
-              </Text>
-            </Pressable>
-            <Pressable style={styles.deleteBtn} onPress={() => deleteItem(index)}>
-              <Text style={styles.deleteBtnText}>✕</Text>
-            </Pressable>
+            <View>
+              <Text style={styles.fieldLabel}>Pinyin</Text>
+              <TextInput
+                style={styles.fieldInput}
+                placeholder="e.g., nǐ hǎo"
+                placeholderTextColor="#94A3B8"
+              />
+            </View>
+            <View>
+              <Text style={styles.fieldLabel}>Definition (optional)</Text>
+              <TextInput
+                style={styles.fieldInput}
+                placeholder="e.g., Hello"
+                placeholderTextColor="#94A3B8"
+              />
+            </View>
           </View>
-        ))}
+          <Pressable
+            style={({ pressed }) => [styles.addAnotherBtn, pressed && { opacity: 0.8 }]}
+            onPress={addItem}
+          >
+            <Text style={styles.addAnotherIcon}>＋</Text>
+            <Text style={styles.addAnotherText}>Add Another Word</Text>
+          </Pressable>
+        </View>
 
-        {/* Add word button */}
-        <Pressable style={styles.addBtn} onPress={addItem}>
-          <Text style={styles.addBtnText}>+ Add Word</Text>
-        </Pressable>
+        {/* ── List Preview ─────────────────────────────────────────────── */}
+        {editItems.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>List Preview</Text>
+              <Text style={styles.sectionCount}>{editItems.length} words added</Text>
+            </View>
+            {editItems.map((item, index) => (
+              <View key={index} style={styles.wordCard}>
+                <View style={styles.wordCardLeft}>
+                  <View style={styles.wordCardMain}>
+                    <Text style={styles.wordCharacters}>
+                      {item.characters || `Word ${index + 1}`}
+                    </Text>
+                    {item.pinyin ? (
+                      <Text style={styles.wordPinyin}>{item.pinyin}</Text>
+                    ) : null}
+                  </View>
+                  <View style={styles.wordCardInputs}>
+                    <TextInput
+                      style={styles.wordCardInput}
+                      value={item.characters}
+                      onChangeText={(v) => updateItem(index, 'characters', v)}
+                      placeholder="Chinese"
+                      placeholderTextColor="#94A3B8"
+                    />
+                    <TextInput
+                      style={styles.wordCardInput}
+                      value={item.pinyin}
+                      onChangeText={(v) => updateItem(index, 'pinyin', v)}
+                      placeholder="pīn yīn"
+                      placeholderTextColor="#94A3B8"
+                    />
+                  </View>
+                </View>
+                <View style={styles.wordCardActions}>
+                  <Pressable
+                    style={[
+                      styles.typeToggle,
+                      item.type === 'hanzi' ? styles.typeToggleHanzi : styles.typeTogglePinyin,
+                    ]}
+                    onPress={() => toggleType(index)}
+                  >
+                    <Text style={styles.typeToggleText}>
+                      {item.type === 'hanzi' ? '写' : '拼'}
+                    </Text>
+                  </Pressable>
+                  <Pressable style={styles.deleteBtn} onPress={() => deleteItem(index)}>
+                    <Text style={styles.deleteBtnText}>✕</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
 
-      {/* Save button */}
-      <Pressable style={styles.saveBtn} onPress={handleSave}>
-        <Text style={styles.saveBtnText}>Save Lesson</Text>
-      </Pressable>
-    </ScreenWrapper>
+      {/* ── Footer: Save List ────────────────────────────────────────────── */}
+      <View
+        style={[
+          styles.footer,
+          { paddingBottom: (Platform.OS === 'web' ? spacing.md : insets.bottom) + spacing.sm },
+        ]}
+      >
+        <Pressable
+          style={({ pressed }) => [styles.saveBtn, pressed && { opacity: 0.85 }]}
+          onPress={handleSave}
+        >
+          <Text style={styles.saveBtnIcon}>💾</Text>
+          <Text style={styles.saveBtnText}>Save List</Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: '#F6F7F8',
+  },
+
+  // Header
   header: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: spacing.md,
-    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
   },
   backBtn: {
-    alignSelf: 'flex-start',
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  backText: {
-    fontSize: 18,
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  scroll: {
+  backIcon: { fontSize: 22, color: '#1E293B' },
+  headerTitle: {
     flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginLeft: spacing.sm,
   },
+
+  // Scroll
+  scroll: { flex: 1 },
   scrollContent: {
     padding: spacing.md,
     gap: spacing.md,
-    paddingBottom: spacing.xxl,
   },
-  lessonInfo: {
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
+
+  // Generic card
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: radius.xl,
     padding: spacing.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  sectionHeader: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
+
+  // Lesson details inputs
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
   },
-  label: {
-    fontSize: 14,
-    color: colors.textLight,
+  inputLabel: {
+    fontSize: 13,
+    color: '#64748B',
     fontWeight: '500',
-    width: 100,
+    width: 90,
   },
   input: {
     flex: 1,
+    height: 44,
+    paddingHorizontal: spacing.sm,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    padding: spacing.xs,
-    fontSize: 16,
-    color: colors.text,
+    borderColor: '#E2E8F0',
+    borderRadius: radius.lg,
+    fontSize: 15,
+    color: '#1E293B',
+    backgroundColor: '#F8FAFC',
+  },
+  levelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   levelChips: {
     flex: 1,
@@ -345,131 +451,160 @@ const styles = StyleSheet.create({
   },
   levelChip: {
     width: 40,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: radius.sm,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: '#E2E8F0',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: '#F8FAFC',
   },
   levelChipSelected: {
     borderColor: colors.primary,
-    backgroundColor: colors.primary + '15',
+    backgroundColor: `${colors.primary}12`,
   },
-  levelChipText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  levelChipTextSelected: {
-    color: colors.primary,
-  },
+  levelChipText: { fontSize: 13, fontWeight: '700', color: '#475569' },
+  levelChipTextSelected: { color: colors.primary },
   previewBox: {
-    marginTop: spacing.sm,
     padding: spacing.sm,
-    backgroundColor: colors.primary + '10',
-    borderRadius: radius.sm,
+    backgroundColor: `${colors.primary}0D`,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: `${colors.primary}26`,
+    gap: 4,
   },
-  previewLabel: {
-    fontSize: 12,
-    color: colors.textLight,
-    fontWeight: '500',
+  previewBoxLabel: { fontSize: 11, color: '#64748B', fontWeight: '500' },
+  previewBoxText: { fontSize: 15, color: colors.primary, fontWeight: '700' },
+
+  // Add word form
+  wordFormFields: { gap: spacing.sm },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
     marginBottom: 4,
   },
-  previewText: {
-    fontSize: 16,
-    color: colors.primary,
-    fontWeight: '700',
+  fieldInput: {
+    width: '100%',
+    height: 48,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: radius.lg,
+    fontSize: 15,
+    color: '#1E293B',
+    backgroundColor: '#FFFFFF',
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  itemRow: {
+  addAnotherBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.sm,
-  },
-  itemNumber: {
-    fontSize: 14,
-    color: colors.textMuted,
-    fontWeight: '600',
-    width: 20,
-    textAlign: 'center',
-  },
-  itemFields: {
-    flex: 1,
+    justifyContent: 'center',
     gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: colors.primary,
+    borderRadius: radius.lg,
+    marginTop: spacing.xs,
   },
-  itemInput: {
+  addAnotherIcon: { fontSize: 18, color: colors.primary },
+  addAnotherText: { fontSize: 15, fontWeight: '700', color: colors.primary },
+
+  // Section
+  section: { gap: spacing.sm },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.xs,
+  },
+  sectionTitle: { fontSize: 17, fontWeight: '700', color: '#1E293B' },
+  sectionCount: { fontSize: 13, fontWeight: '500', color: '#64748B' },
+
+  // Word card (list preview)
+  wordCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: radius.xl,
+    padding: spacing.md,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    paddingVertical: 4,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+    gap: spacing.sm,
+  },
+  wordCardLeft: { flex: 1, gap: spacing.xs },
+  wordCardMain: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: spacing.sm,
+  },
+  wordCharacters: { fontSize: 20, fontWeight: '700', color: '#1E293B' },
+  wordPinyin: { fontSize: 13, fontWeight: '500', color: colors.primary, fontStyle: 'italic' },
+  wordCardInputs: { gap: 4 },
+  wordCardInput: {
+    height: 36,
     paddingHorizontal: spacing.sm,
-    fontSize: 16,
-    color: colors.text,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: radius.sm,
+    fontSize: 14,
+    color: '#1E293B',
+    backgroundColor: '#F8FAFC',
+  },
+  wordCardActions: {
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   typeToggle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  typeToggleHanzi: { backgroundColor: colors.tone4 },
+  typeTogglePinyin: { backgroundColor: colors.tone2 },
+  typeToggleText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  deleteBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  typeHanzi: {
-    backgroundColor: colors.tone4,
-  },
-  typePinyin: {
-    backgroundColor: colors.tone2,
-  },
-  typeText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  deleteBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  deleteBtnText: {
-    color: colors.textLight,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  addBtn: {
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-    borderWidth: 2,
-    borderColor: colors.primary,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-  },
-  addBtnText: {
-    fontSize: 16,
-    color: colors.primary,
-    fontWeight: '600',
+  deleteBtnText: { color: '#64748B', fontSize: 14, fontWeight: '700' },
+
+  // Footer
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
   },
   saveBtn: {
-    margin: spacing.md,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.correct,
-    borderRadius: radius.md,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.primary,
+    borderRadius: radius.xl,
+    paddingVertical: spacing.md,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  saveBtnText: {
-    fontSize: 20,
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
+  saveBtnIcon: { fontSize: 20 },
+  saveBtnText: { fontSize: 17, fontWeight: '700', color: '#FFFFFF' },
 });
