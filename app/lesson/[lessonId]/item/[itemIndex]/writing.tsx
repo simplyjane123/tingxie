@@ -11,6 +11,7 @@ import { getLessonById } from '../../../../../data/lessons';
 import { useAppStore } from '../../../../../store/useAppStore';
 import { colors, spacing, typography } from '../../../../../constants/theme';
 import { loadCharacterData, CharacterData } from '../../../../../utils/characterLoader';
+import { WRITING_GRID_SIZE } from '../../../../../constants/layout';
 
 type Mode = 'demo' | 'trace' | 'done';
 
@@ -23,6 +24,7 @@ export default function WritingScreen() {
 
   const [mode, setMode] = useState<Mode>('demo');
   const [charIdx, setCharIdx] = useState(0);
+  const [completedChars, setCompletedChars] = useState<string[]>([]);
   const [charData, setCharData] = useState<CharacterData | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -55,6 +57,8 @@ export default function WritingScreen() {
   };
 
   const handleTraceComplete = () => {
+    const newCompleted = [...completedChars, currentChar];
+    setCompletedChars(newCompleted);
     setShowCelebration(true);
     setTimeout(() => {
       setShowCelebration(false);
@@ -93,8 +97,8 @@ export default function WritingScreen() {
       </View>
 
       <View style={styles.content}>
-        {/* Show the full word context - only in demo mode at top */}
-        {mode === 'demo' && (
+        {/* Full word label always visible during demo/trace */}
+        {(mode === 'demo' || mode === 'trace') && (
           <Text style={styles.wordLabel}>
             {item.characters} ({item.pinyin})
           </Text>
@@ -106,12 +110,20 @@ export default function WritingScreen() {
 
         {mode === 'demo' && !loading && (
           <>
-            <StrokeDemo
-              characterData={charData}
-              character={currentChar}
-              speakText={item.characters}
-              onComplete={handleDemoComplete}
-            />
+            {/* Completed chars + demo grid in a row */}
+            <View style={styles.writingRow}>
+              {completedChars.map((ch, i) => (
+                <View key={i} style={styles.completedCharBox}>
+                  <Text style={styles.completedCharText}>{ch}</Text>
+                </View>
+              ))}
+              <StrokeDemo
+                characterData={charData}
+                character={currentChar}
+                speakText={item.characters}
+                onComplete={handleDemoComplete}
+              />
+            </View>
             <BigButton
               label="开始写"
               onPress={() => setMode('trace')}
@@ -122,19 +134,26 @@ export default function WritingScreen() {
 
         {mode === 'trace' && (
           <>
-          <SpeakButton
-            text={item.characters || item.pinyin}
-            size="small"
-            autoPlay
-            autoPlayDelay={500}
-          />
-          <StrokeTracer
-            characterData={charData}
-            character={currentChar}
-            wordLabel={`${item.characters} (${item.pinyin})`}
-            speakText={item.characters}
-            onComplete={handleTraceComplete}
-          />
+            <SpeakButton
+              text={item.characters || item.pinyin}
+              size="small"
+              autoPlay
+              autoPlayDelay={500}
+            />
+            {/* Completed chars + tracer grid in a row */}
+            <View style={styles.writingRow}>
+              {completedChars.map((ch, i) => (
+                <View key={i} style={styles.completedCharBox}>
+                  <Text style={styles.completedCharText}>{ch}</Text>
+                </View>
+              ))}
+              <StrokeTracer
+                characterData={charData}
+                character={currentChar}
+                speakText={item.characters}
+                onComplete={handleTraceComplete}
+              />
+            </View>
           </>
         )}
 
@@ -146,6 +165,7 @@ export default function WritingScreen() {
               label="再写一次"
               onPress={() => {
                 setCharIdx(0);
+                setCompletedChars([]);
                 setMode('demo');
               }}
               color={colors.primary}
@@ -240,5 +260,25 @@ const styles = StyleSheet.create({
     color: colors.textLight,
     textAlign: 'center',
     marginTop: 100,
+  },
+  writingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  completedCharBox: {
+    width: WRITING_GRID_SIZE,
+    height: WRITING_GRID_SIZE,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+  },
+  completedCharText: {
+    fontSize: WRITING_GRID_SIZE * 0.55,
+    color: colors.correct,
+    fontWeight: '500',
   },
 });
