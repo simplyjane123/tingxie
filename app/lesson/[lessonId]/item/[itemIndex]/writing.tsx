@@ -66,13 +66,14 @@ export default function WritingScreen() {
     } else {
       // All characters done — speak the word, then celebrate
       useAppStore.getState().markWritingComplete(item.id);
-      speakChinese(item.characters || item.pinyin, 0.65, () => {
+      speakChinese(item.characters || item.pinyin);
+      setTimeout(() => {
         setShowCelebration(true);
         setTimeout(() => {
           setShowCelebration(false);
           setMode('done');
         }, 1500);
-      });
+      }, 1200);
     }
   };
 
