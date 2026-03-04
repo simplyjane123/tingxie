@@ -57,11 +57,9 @@ export default function WritingScreen() {
   };
 
   const handleTraceComplete = () => {
-    const newCompleted = [...completedChars, currentChar];
-    setCompletedChars(newCompleted);
-
     if (charIdx + 1 < characters.length) {
-      // Move to next character — no celebration between chars
+      // Move to next character — keep completed chars visible to the left
+      setCompletedChars([...completedChars, currentChar]);
       setCharIdx(charIdx + 1);
       setMode('demo');
     } else {
