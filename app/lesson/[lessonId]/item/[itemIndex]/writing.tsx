@@ -146,6 +146,7 @@ export default function WritingScreen() {
                 </View>
               ))}
               <StrokeTracer
+                key={charIdx}
                 characterData={charData}
                 character={currentChar}
                 speakText={item.characters}
