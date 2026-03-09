@@ -16,14 +16,14 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'No text provided' });
     }
 
-    // Single chars at 0.85, short words at 0.90, longer text at 1.0
-    const speakingRate = text.length === 1 ? 0.85 : text.length <= 3 ? 0.90 : 1.0;
+    // Single chars at 0.80 (gives tones time to complete), short words at 0.90, longer 1.0
+    const speakingRate = text.length === 1 ? 0.80 : text.length <= 3 ? 0.90 : 1.0;
 
     const body = {
       input: { text },
       voice: {
         languageCode: 'cmn-CN',
-        name: 'cmn-CN-Wavenet-A', // Female Mandarin voice with accurate tones
+        name: 'cmn-CN-Wavenet-C', // Male Mandarin voice — cleaner tone articulation
       },
       audioConfig: {
         audioEncoding: 'MP3',
