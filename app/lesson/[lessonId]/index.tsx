@@ -7,6 +7,7 @@ import SpeakButton from '../../../components/audio/SpeakButton';
 import { getLessonById } from '../../../data/lessons';
 import { useAppStore } from '../../../store/useAppStore';
 import { encodeLessonToUrl } from '../../../utils/shareLesson';
+import { speak } from '../../../utils/speech';
 import { colors, spacing, radius, typography, toneColor } from '../../../constants/theme';
 
 export default function WordMapScreen() {
@@ -105,9 +106,12 @@ export default function WordMapScreen() {
               ]}
               onPress={() => {
                 useAppStore.getState().setItemIndex(index);
-                // Pinyin items go directly to pinyin screen (听一听), hanzi items go to writing
                 const track = item.type === 'pinyin' ? 'pinyin' : 'writing';
-                router.push(`/lesson/${lessonId}/item/${index}/${track}`);
+                const dest = `/lesson/${lessonId}/item/${index}/${track}`;
+                let navigated = false;
+                const go = () => { if (!navigated) { navigated = true; router.push(dest); } };
+                speak(item.characters || item.pinyin, { language: 'zh-CN', rate: 0.9, onDone: go, onError: go });
+                setTimeout(go, 1200);
               }}
             >
               {/* For pinyin items: show tone curves + pinyin */}
