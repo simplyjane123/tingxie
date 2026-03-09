@@ -10,7 +10,7 @@ import CelebrationRoll from '../../../../../components/feedback/CelebrationRoll'
 import { getLessonById } from '../../../../../data/lessons';
 import { useAppStore } from '../../../../../store/useAppStore';
 import { colors, spacing, typography } from '../../../../../constants/theme';
-import { loadCharacterData, CharacterData } from '../../../../../utils/characterLoader';
+import { loadCharacterData, CharacterData, preloadLessonCharacters } from '../../../../../utils/characterLoader';
 import { WRITING_GRID_SIZE } from '../../../../../constants/layout';
 
 type Mode = 'demo' | 'trace' | 'done';
@@ -32,6 +32,11 @@ export default function WritingScreen() {
 
   const characters = item?.characters?.split('') ?? [];
   const currentChar = characters[charIdx] ?? '';
+
+  // Preload all characters for the word upfront so transitions are instant
+  useEffect(() => {
+    if (characters.length > 1) preloadLessonCharacters(characters);
+  }, []);
 
   // Load character stroke data from CDN with offline cache
   useEffect(() => {

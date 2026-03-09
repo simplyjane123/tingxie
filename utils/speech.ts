@@ -165,8 +165,8 @@ function speakWeb(text: string, options: SpeakOptions) {
     utterance.voice = voice;
     utterance.lang = voice.lang; // match lang to the selected voice exactly
   } else {
-    // No Chinese voice available — lower volume so Cloud TTS can take over
-    utterance.volume = 0.15;
+    // No Chinese voice available — silence Web Speech, Cloud TTS will play instead
+    utterance.volume = 0;
   }
 
   utterance.onend = () => options.onDone?.();
