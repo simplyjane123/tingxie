@@ -8,7 +8,6 @@ import Animated, {
   withSequence,
   withRepeat,
   withDelay,
-  runOnJS,
   Easing,
 } from 'react-native-reanimated';
 
@@ -132,12 +131,13 @@ function RollingAnimal({ animal, delay, startX, startY, direction }: {
       easing: Easing.linear,
     }));
 
+    // Finite bounces (5 = ~3.5s), not infinite
     translateY.value = withDelay(delay, withRepeat(
       withSequence(
         withTiming(startY - 40, { duration: 350, easing: Easing.out(Easing.quad) }),
         withTiming(startY, { duration: 350, easing: Easing.in(Easing.quad) }),
       ),
-      -1,
+      5,
       false,
     ));
 
@@ -205,55 +205,37 @@ export default function CelebrationRoll({ visible, onDone }: Props) {
     setPraise(selectedPraise);
     setSubPraise(selectedSub);
 
-    let speechDone = false;
-    let timerDone = false;
+    speakPraise(selectedPraise);
 
-    const checkAndHide = () => {
-      if (speechDone && timerDone) {
-        overlayOpacity.value = withTiming(0, { duration: 500 });
-        praiseOpacity.value = withTiming(0, { duration: 400 });
-        subPraiseOpacity.value = withTiming(0, { duration: 400 }, () => {
-          if (onDone) runOnJS(onDone)();
-        });
-      }
-    };
-
-    speakPraise(selectedPraise, () => {
-      speechDone = true;
-      checkAndHide();
-    });
-
-    // Generate rolling animals — lots of them!
-    const numAnimals = 10 + Math.floor(Math.random() * 6); // 10–15 animals
+    // Generate rolling animals — keep count low for performance
+    const numAnimals = 6;
     const newAnimals = [];
-    // Spread animals across multiple vertical bands so they fill the screen
     for (let i = 0; i < numAnimals; i++) {
       const direction = i % 2 === 0 ? 1 : -1;
-      // Spread across top, middle and bottom thirds
       const band = i % 3;
-      const bandTop = band === 0 ? 0.15 : band === 1 ? 0.4 : 0.65;
+      const bandTop = band === 0 ? 0.15 : band === 1 ? 0.45 : 0.70;
       newAnimals.push({
         animal: ANIMALS[i % ANIMALS.length],
-        delay: i * 100,
+        delay: i * 150,
         startX: direction > 0 ? -120 : SCREEN_W + 120,
-        startY: SCREEN_H * bandTop + Math.random() * SCREEN_H * 0.18,
+        startY: SCREEN_H * bandTop + Math.random() * SCREEN_H * 0.12,
         direction,
         key: i,
       });
     }
     setAnimals(newAnimals);
 
-    // Generate confetti — 3 waves
+    // Generate confetti — 2 waves of 15 pieces (30 total, was 60)
     const newConfetti = [];
-    const totalPieces = 60;
+    const totalPieces = 30;
     for (let i = 0; i < totalPieces; i++) {
-      const wave = Math.floor(i / 20); // 3 waves of 20
+      const wave = Math.floor(i / 15);
       newConfetti.push({
-        delay: wave * 600 + Math.random() * 400,
+        delay: wave * 700 + Math.random() * 300,
         startX: Math.random() * SCREEN_W,
         color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
         shape: CONFETTI_SHAPES[Math.floor(Math.random() * CONFETTI_SHAPES.length)],
-        duration: 2000 + Math.random() * 1500,
+        duration: 1800 + Math.random() * 1000,
         key: i,
       });
     }
@@ -281,10 +263,12 @@ export default function CelebrationRoll({ visible, onDone }: Props) {
     // Sub-praise fades in after main praise
     subPraiseOpacity.value = withDelay(800, withTiming(1, { duration: 400 }));
 
-    // Auto-hide after 3500ms AND speech is done
+    // Auto-hide after 3500ms (timer alone, no speech dependency)
     const timer = setTimeout(() => {
-      timerDone = true;
-      checkAndHide();
+      overlayOpacity.value = withTiming(0, { duration: 500 });
+      praiseOpacity.value = withTiming(0, { duration: 400 });
+      subPraiseOpacity.value = withTiming(0, { duration: 400 });
+      if (onDone) setTimeout(onDone, 400);
     }, 3500);
 
     return () => clearTimeout(timer);
