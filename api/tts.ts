@@ -16,8 +16,8 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'No text provided' });
     }
 
-    // Longer sentences get a faster rate for more natural flow
-    const speakingRate = text.length > 3 ? 0.90 : 0.70;
+    // Single chars at 0.85, short words at 0.90, longer text at 1.0
+    const speakingRate = text.length === 1 ? 0.85 : text.length <= 3 ? 0.90 : 1.0;
 
     const body = {
       input: { text },
