@@ -21,13 +21,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session (handles magic link token in URL automatically)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session) {
+        setSession(session);
+        setLoading(false);
+      } else {
+        const { data } = await supabase.auth.signInAnonymously();
+        setSession(data.session);
+        setLoading(false);
+      }
     });
 
-    // Keep session in sync
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setLoading(false);
