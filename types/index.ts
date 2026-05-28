@@ -56,4 +56,5 @@ export interface AppState {
   deleteCustomLesson: (lessonId: string) => void;
   setCustomLessons: (lessons: Lesson[]) => void;
   setOcrApiKey: (key: string) => void;
+  initFromCloud: () => Promise<void>;
 }

@@ -25,11 +25,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session) {
         setSession(session);
         setLoading(false);
+        return;
+      }
+
+      // Auto sign-in with shared family credentials so all devices use the same account.
+      // Set EXPO_PUBLIC_APP_EMAIL and EXPO_PUBLIC_APP_PASSWORD in Vercel + .env.local.
+      const email = process.env.EXPO_PUBLIC_APP_EMAIL;
+      const password = process.env.EXPO_PUBLIC_APP_PASSWORD;
+
+      if (email && password) {
+        const { data } = await supabase.auth.signInWithPassword({ email, password });
+        setSession(data.session);
       } else {
         const { data } = await supabase.auth.signInAnonymously();
         setSession(data.session);
-        setLoading(false);
       }
+      setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {

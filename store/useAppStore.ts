@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, WordProgress } from '../types';
+import { fetchProgress, saveProgress } from '../lib/progressApi';
 
 const defaultProgress: WordProgress = {
   writingComplete: false,
@@ -92,16 +93,46 @@ export const useAppStore = create<AppState>()(
       setCustomLessons: (lessons) => set({ customLessons: lessons }),
 
       setOcrApiKey: (key) => set({ ocrApiKey: key }),
+
+      initFromCloud: async () => {
+        const saved = await fetchProgress();
+        if (saved) {
+          set({
+            currentLessonId: saved.currentLessonId ?? null,
+            currentItemIndex: saved.currentItemIndex ?? 0,
+            progress: saved.progress ?? {},
+          });
+        }
+      },
     }),
     {
       name: 'xiao-ting-xie-storage',
       storage: createJSONStorage(() => AsyncStorage),
-      // customLessons are now persisted in Supabase — exclude from local storage
       partialize: (state) => ({
         progress: state.progress,
         currentLessonId: state.currentLessonId,
+        currentItemIndex: state.currentItemIndex,
         ocrApiKey: state.ocrApiKey,
       }),
     },
   ),
 );
+
+// Auto-sync progress to Supabase whenever it changes (debounced 1.5s)
+let syncTimeout: ReturnType<typeof setTimeout> | null = null;
+useAppStore.subscribe((state, prev) => {
+  if (
+    state.progress === prev.progress &&
+    state.currentLessonId === prev.currentLessonId &&
+    state.currentItemIndex === prev.currentItemIndex
+  ) return;
+
+  if (syncTimeout) clearTimeout(syncTimeout);
+  syncTimeout = setTimeout(() => {
+    saveProgress({
+      currentLessonId: state.currentLessonId,
+      currentItemIndex: state.currentItemIndex,
+      progress: state.progress,
+    });
+  }, 1500);
+});
